@@ -1,6 +1,6 @@
 # 🚨 AI Smart City Emergency Coordination Platform
 
-An AI-powered multi-agent system designed to transform how cities handle emergency reports by enabling real-time analysis, intelligent severity classification, and optimized dispatch coordination.
+An intelligent multi-agent emergency coordination platform that leverages Azure AI to process multimodal emergency reports (text, image, voice) in real time and optimize dispatch decisions.
 
 ---
 
@@ -89,4 +89,4 @@ Currently under development as part of a hackathon challenge:
 
 ## 📄 License
 
-MIT License
+MIT License.
