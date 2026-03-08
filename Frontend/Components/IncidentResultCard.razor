@@ -1,0 +1,161 @@
+@using EmergencyPlatform.Frontend.Models
+
+<div class="result-card" style="--severity-color: @Report.SeverityColor">
+    <!-- ── Header ─────────────────────────────────────────────────────── -->
+    <div class="result-header">
+        <div class="incident-badge">
+            <span class="incident-icon">@Report.IncidentIcon</span>
+            <div>
+                <div class="incident-title">@Report.IncidentType.ToUpper()</div>
+                <div class="incident-id">ID: @Report.IncidentId</div>
+            </div>
+        </div>
+        <div class="severity-pill" style="background: @Report.SeverityColor">
+            @Report.SeverityLevel.ToUpper()
+        </div>
+    </div>
+
+    <!-- ── Reasoning ─────────────────────────────────────────────────── -->
+    <div class="section">
+        <div class="section-label">🧠 AI Reasoning</div>
+        <p class="reasoning-text">@Report.ReasoningSummary</p>
+    </div>
+
+    <!-- ── Dispatch ──────────────────────────────────────────────────── -->
+    <div class="section">
+        <div class="section-label">🚨 Dispatch Recommendation</div>
+        <div class="dispatch-row">
+            <div class="priority-badge">Priority @Report.DispatchRecommendation.Priority – @Report.PriorityLabel</div>
+            <div class="units">
+                @foreach (var unit in Report.DispatchRecommendation.UnitsRequired)
+                {
+                    <span class="unit-tag">@UnitIcon(unit) @unit.ToUpper()</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Entities ──────────────────────────────────────────────────── -->
+    <div class="section metrics-row">
+        <div class="metric">
+            <div class="metric-val">@Report.Entities.PeopleInvolved</div>
+            <div class="metric-lbl">People</div>
+        </div>
+        <div class="metric">
+            <div class="metric-val">@Report.Entities.VehiclesInvolved</div>
+            <div class="metric-lbl">Vehicles</div>
+        </div>
+        <div class="metric hazards">
+            <div class="metric-val small">@(string.IsNullOrEmpty(Report.Entities.Hazards) ? "None" : Report.Entities.Hazards)</div>
+            <div class="metric-lbl">Hazards</div>
+        </div>
+    </div>
+
+    <!-- ── Location ──────────────────────────────────────────────────── -->
+    @if (!string.IsNullOrEmpty(Report.LocationData.InferredLocationDescription)
+         || Report.LocationData.Lat.HasValue)
+    {
+        <div class="section">
+            <div class="section-label">📍 Location</div>
+            <div class="location-box">
+                @if (Report.LocationData.Lat.HasValue)
+                {
+                    <span>@Report.LocationData.Lat?.ToString("F5"), @Report.LocationData.Lon?.ToString("F5")</span>
+                }
+                @if (!string.IsNullOrEmpty(Report.LocationData.InferredLocationDescription))
+                {
+                    <span class="location-desc"> — @Report.LocationData.InferredLocationDescription</span>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- ── Agent Trace ────────────────────────────────────────────────── -->
+    <details class="trace-details">
+        <summary class="trace-summary">🔍 Agent Execution Trace</summary>
+        <div class="trace-list">
+            @foreach (var step in Report.AgentTrace)
+            {
+                <div class="trace-step">
+                    <div class="trace-agent">@step.Agent</div>
+                    <div class="trace-output">@step.Output</div>
+                    <div class="trace-time">@step.DurationMs ms</div>
+                </div>
+            }
+        </div>
+    </details>
+
+    <!-- ── Raw JSON ───────────────────────────────────────────────────── -->
+    <details class="json-details">
+        <summary class="trace-summary">📋 Raw JSON Report</summary>
+        <pre class="json-block">@System.Text.Json.JsonSerializer.Serialize(Report,
+            new System.Text.Json.JsonSerializerOptions { WriteIndented = true })</pre>
+    </details>
+</div>
+
+@code {
+    [Parameter] public required IncidentReportViewModel Report { get; set; }
+
+    static string UnitIcon(string unit) => unit switch
+    {
+        "police"    => "🚔",
+        "fire"      => "🚒",
+        "ambulance" => "🚑",
+        "rescue"    => "🚁",
+        "utility"   => "🔧",
+        _           => "🚨"
+    };
+}
+
+<style>
+    .result-card { background: white; border-radius: 20px;
+        border: 2px solid var(--severity-color, #e5e5ea);
+        padding: 1.5rem; margin-top: 1.5rem;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.07); animation: slideUp 0.3s ease-out; }
+    @@keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity:1; transform:none; } }
+
+    .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; }
+    .incident-badge { display: flex; align-items: center; gap: 0.75rem; }
+    .incident-icon { font-size: 2.5rem; }
+    .incident-title { font-size: 1.3rem; font-weight: 800; font-family: 'DM Mono', monospace; }
+    .incident-id { font-size: 0.75rem; color: #8e8e93; }
+    .severity-pill { color: white; padding: 0.4rem 1rem; border-radius: 50px;
+        font-weight: 800; font-size: 0.85rem; letter-spacing: 0.05em; }
+
+    .section { margin-bottom: 1.2rem; }
+    .section-label { font-size: 0.8rem; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.07em; color: #8e8e93; margin-bottom: 0.4rem; }
+    .reasoning-text { color: #1c1c1e; font-size: 0.95rem; line-height: 1.6; margin: 0; }
+
+    .dispatch-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+    .priority-badge { background: #f2f2f7; border-radius: 8px; padding: 0.4rem 0.8rem;
+        font-weight: 700; font-size: 0.85rem; }
+    .units { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .unit-tag { background: #1c1c1e; color: white; border-radius: 6px;
+        padding: 0.3rem 0.7rem; font-size: 0.8rem; font-weight: 700; }
+
+    .metrics-row { display: flex; gap: 1rem; }
+    .metric { flex: 1; background: #f2f2f7; border-radius: 12px; padding: 0.8rem;
+        text-align: center; }
+    .metric-val { font-size: 1.6rem; font-weight: 800; }
+    .metric-val.small { font-size: 0.85rem; word-break: break-word; }
+    .metric-lbl { font-size: 0.75rem; color: #8e8e93; text-transform: uppercase;
+        letter-spacing: 0.05em; margin-top: 0.2rem; }
+
+    .location-box { font-family: 'DM Mono', monospace; font-size: 0.9rem;
+        color: #3a3a3c; background: #f2f2f7; border-radius: 8px; padding: 0.5rem 0.75rem; }
+    .location-desc { color: #636366; }
+
+    .trace-details, .json-details { margin-top: 1rem; }
+    .trace-summary { cursor: pointer; font-size: 0.85rem; font-weight: 700; color: #636366; }
+    .trace-list { margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; }
+    .trace-step { display: grid; grid-template-columns: 160px 1fr auto;
+        gap: 0.5rem; align-items: start; font-size: 0.82rem;
+        background: #f9f9f9; border-radius: 8px; padding: 0.5rem 0.75rem; }
+    .trace-agent { font-weight: 700; color: #0a84ff; }
+    .trace-output { color: #3a3a3c; }
+    .trace-time { color: #8e8e93; white-space: nowrap; }
+
+    .json-block { background: #1c1c1e; color: #30d158; border-radius: 12px;
+        padding: 1rem; font-size: 0.78rem; overflow-x: auto; margin-top: 0.75rem; }
+</style>

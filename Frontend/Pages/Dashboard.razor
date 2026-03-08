@@ -1,0 +1,281 @@
+@page "/"
+@page "/dashboard"
+@using EmergencyPlatform.Frontend.Models
+@using EmergencyPlatform.Frontend.Services
+@inject EmergencyApiService Api
+@inject NavigationManager Nav
+@inject AuthService Auth
+
+<PageTitle>Emergency Coordination Platform</PageTitle>
+
+@if (!Auth.IsLoggedIn)
+{
+    <div style="display:flex;align-items:center;justify-content:center;height:100vh;">
+        <p style="color:#636366">Redirecting to login...</p>
+    </div>
+}
+else
+{
+<div class="dashboard">
+    <!-- ── Sidebar ────────────────────────────────────────────────────── -->
+    <aside class="sidebar">
+        <div class="logo">
+            <span class="logo-icon">🚨</span>
+            <div>
+                <div class="logo-title">EmergencyAI</div>
+                <div class="logo-sub">Smart City Platform</div>
+            </div>
+        </div>
+
+        <nav class="nav">
+            <a class="nav-item active" href="/dashboard">📊 Dashboard</a>
+            <a class="nav-item" href="/report">📝 New Report</a>
+            <a class="nav-item" href="/incidents">📋 All Incidents</a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <span class="user-email">@Auth.CurrentUserEmail</span>
+            </div>
+            <button class="logout-btn" @onclick="Logout">🚪 Logout</button>
+            <div class="system-status">
+                <span class="dot green"></span> All systems operational
+            </div>
+        </div>
+    </aside>
+
+    <!-- ── Main content ───────────────────────────────────────────────── -->
+    <main class="main">
+        <div class="topbar">
+            <h2 class="topbar-title">Live Operations Center</h2>
+            <div class="topbar-right">
+                <span class="time">@DateTime.Now.ToString("HH:mm:ss")</span>
+                <button class="new-report-btn" @onclick='() => Nav.NavigateTo("/report")'>
+                    + New Report
+                </button>
+            </div>
+        </div>
+
+        <!-- ── KPI Row ───────────────────────────────────────────────── -->
+        <div class="kpi-row">
+            <div class="kpi critical">
+                <div class="kpi-val">@RecentIncidents.Count(i => i.SeverityLevel == "critical")</div>
+                <div class="kpi-lbl">Critical</div>
+            </div>
+            <div class="kpi high">
+                <div class="kpi-val">@RecentIncidents.Count(i => i.SeverityLevel == "high")</div>
+                <div class="kpi-lbl">High</div>
+            </div>
+            <div class="kpi medium">
+                <div class="kpi-val">@RecentIncidents.Count(i => i.SeverityLevel == "medium")</div>
+                <div class="kpi-lbl">Medium</div>
+            </div>
+            <div class="kpi total">
+                <div class="kpi-val">@RecentIncidents.Count</div>
+                <div class="kpi-lbl">Total</div>
+            </div>
+        </div>
+
+        <!-- ── Recent Incidents Table ─────────────────────────────────── -->
+        <div class="incidents-panel">
+            <div class="panel-header">
+                <h3>Recent Incidents</h3>
+                <span class="live-badge">● LIVE</span>
+            </div>
+
+            @if (RecentIncidents.Count == 0)
+            {
+                <div class="empty-state">
+                    <span style="font-size:3rem">📡</span>
+                    <p>No incidents reported yet. Submit a report to see it here.</p>
+                    <button class="new-report-btn outline"
+                            @onclick='() => Nav.NavigateTo("/report")'>
+                        Submit First Report
+                    </button>
+                </div>
+            }
+            else
+            {
+                <table class="incident-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Type</th>
+                            <th>Severity</th>
+                            <th>Priority</th>
+                            <th>Units</th>
+                            <th>Location</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var inc in RecentIncidents.OrderByDescending(i => i.Timestamp))
+                        {
+                            <tr class="incident-row" @onclick="() => SelectIncident(inc)">
+                                <td class="mono">@inc.IncidentId</td>
+                                <td>@inc.IncidentIcon @inc.IncidentType</td>
+                                <td>
+                                    <span class="sev-dot" style="background:@inc.SeverityColor"></span>
+                                    @inc.SeverityLevel
+                                </td>
+                                <td class="priority">P@(inc.DispatchRecommendation.Priority)</td>
+                                <td>@string.Join(", ", inc.DispatchRecommendation.UnitsRequired)</td>
+                                <td class="location-cell">@inc.LocationData.InferredLocationDescription</td>
+                                <td class="mono time-cell">@inc.Timestamp.ToString("HH:mm")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+
+        <!-- ── Selected Incident Detail ──────────────────────────────── -->
+        @if (SelectedIncident != null)
+        {
+            <div class="detail-panel">
+                <div class="detail-header">
+                    <h3>Incident Detail</h3>
+                    <button class="close-btn" @onclick="() => SelectedIncident = null">✕</button>
+                </div>
+                <IncidentResultCard Report="SelectedIncident" />
+            </div>
+        }
+    </main>
+</div>
+}
+
+@code {
+    List<IncidentReportViewModel> RecentIncidents = new()
+    {
+        new IncidentReportViewModel
+        {
+            IncidentId    = "A1B2C3D4",
+            InputType     = "text",
+            IncidentType  = "fire",
+            SeverityLevel = "critical",
+            Timestamp     = DateTime.Now.AddMinutes(-3),
+            LocationData  = new() { InferredLocationDescription = "Main St & 5th Ave" },
+            Entities      = new() { PeopleInvolved = 3, Hazards = "smoke, flames" },
+            ReasoningSummary = "Active structure fire with trapped occupants reported.",
+            DispatchRecommendation = new() { UnitsRequired = new(){"fire","ambulance"}, Priority = 1 }
+        },
+        new IncidentReportViewModel
+        {
+            IncidentId    = "E5F6G7H8",
+            InputType     = "image",
+            IncidentType  = "accident",
+            SeverityLevel = "high",
+            Timestamp     = DateTime.Now.AddMinutes(-12),
+            LocationData  = new() { InferredLocationDescription = "Highway 101, Mile 45" },
+            Entities      = new() { PeopleInvolved = 2, VehiclesInvolved = 3, Hazards = "fuel leak" },
+            ReasoningSummary = "Multi-vehicle collision with fuel leak. Injuries likely.",
+            DispatchRecommendation = new() { UnitsRequired = new(){"police","ambulance","fire"}, Priority = 2 }
+        },
+        new IncidentReportViewModel
+        {
+            IncidentId    = "I9J0K1L2",
+            InputType     = "audio",
+            IncidentType  = "medical",
+            SeverityLevel = "medium",
+            Timestamp     = DateTime.Now.AddMinutes(-27),
+            LocationData  = new() { InferredLocationDescription = "Central Park, near fountain" },
+            Entities      = new() { PeopleInvolved = 1 },
+            ReasoningSummary = "Caller reports unresponsive elderly person. Vital signs unknown.",
+            DispatchRecommendation = new() { UnitsRequired = new(){"ambulance"}, Priority = 2 }
+        }
+    };
+
+    IncidentReportViewModel? SelectedIncident;
+
+    protected override void OnInitialized()
+    {
+        if (!Auth.IsLoggedIn)
+            Nav.NavigateTo("/login");
+    }
+
+    void SelectIncident(IncidentReportViewModel inc) =>
+        SelectedIncident = SelectedIncident == inc ? null : inc;
+
+    void Logout()
+    {
+        Auth.Logout();
+        Nav.NavigateTo("/login");
+    }
+}
+
+<style>
+    .dashboard { display: flex; min-height: 100vh; background: #f2f2f7; font-family: -apple-system, sans-serif; }
+
+    .sidebar { width: 230px; background: #1c1c1e; color: white;
+        display: flex; flex-direction: column; padding: 1.5rem 1rem; flex-shrink: 0; }
+    .logo { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 2rem; }
+    .logo-icon { font-size: 2rem; }
+    .logo-title { font-weight: 800; font-size: 1.1rem; }
+    .logo-sub { font-size: 0.7rem; color: #636366; }
+    .nav { display: flex; flex-direction: column; gap: 0.3rem; flex: 1; }
+    .nav-item { color: #8e8e93; text-decoration: none; padding: 0.6rem 0.8rem;
+        border-radius: 8px; font-size: 0.9rem; transition: all 0.15s; }
+    .nav-item:hover, .nav-item.active { background: rgba(255,255,255,0.1); color: white; }
+    .sidebar-footer { margin-top: auto; display: flex; flex-direction: column; gap: 0.5rem; }
+    .user-info { padding: 0.5rem 0; border-top: 1px solid rgba(255,255,255,0.08); }
+    .user-email { font-size: 0.75rem; color: #8e8e93; word-break: break-all; }
+    .logout-btn { background: rgba(255,45,85,0.15); border: 1px solid rgba(255,45,85,0.3);
+        color: #ff6b8a; border-radius: 8px; padding: 0.5rem 0.8rem;
+        font-size: 0.85rem; cursor: pointer; text-align: left; }
+    .logout-btn:hover { background: rgba(255,45,85,0.25); }
+    .system-status { font-size: 0.78rem; color: #8e8e93; display: flex; align-items: center; gap: 0.4rem; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot.green { background: #30d158; }
+
+    .main { flex: 1; overflow-y: auto; }
+    .topbar { display: flex; justify-content: space-between; align-items: center;
+        padding: 1.2rem 2rem; background: white; border-bottom: 1px solid #e5e5ea; }
+    .topbar-title { font-size: 1.3rem; font-weight: 800; margin: 0; }
+    .topbar-right { display: flex; align-items: center; gap: 1rem; }
+    .time { font-family: 'DM Mono', monospace; color: #636366; font-size: 1.1rem; }
+
+    .new-report-btn { background: #0a84ff; color: white; border: none; border-radius: 10px;
+        padding: 0.55rem 1.1rem; font-weight: 700; cursor: pointer; }
+    .new-report-btn.outline { background: transparent; border: 2px solid #0a84ff; color: #0a84ff; }
+
+    .kpi-row { display: flex; gap: 1rem; padding: 1.5rem 2rem 0; }
+    .kpi { flex: 1; background: white; border-radius: 14px; padding: 1.2rem;
+        text-align: center; border-top: 4px solid #e5e5ea; }
+    .kpi.critical { border-color: #ff2d55; }
+    .kpi.high     { border-color: #ff9500; }
+    .kpi.medium   { border-color: #ffd60a; }
+    .kpi.total    { border-color: #0a84ff; }
+    .kpi-val { font-size: 2.2rem; font-weight: 900; }
+    .kpi-lbl { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: #8e8e93; }
+
+    .incidents-panel { background: white; border-radius: 16px; margin: 1.5rem 2rem 0;
+        overflow: hidden; border: 1px solid #e5e5ea; }
+    .panel-header { display: flex; justify-content: space-between; align-items: center;
+        padding: 1rem 1.5rem; border-bottom: 1px solid #e5e5ea; }
+    .panel-header h3 { margin: 0; font-size: 1rem; }
+    .live-badge { background: #ff2d55; color: white; font-size: 0.72rem;
+        font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 50px; }
+
+    .incident-table { width: 100%; border-collapse: collapse; }
+    .incident-table th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em;
+        color: #8e8e93; text-align: left; padding: 0.6rem 1.5rem;
+        background: #f9f9f9; border-bottom: 1px solid #e5e5ea; }
+    .incident-row td { padding: 0.75rem 1.5rem; border-bottom: 1px solid #f2f2f7;
+        font-size: 0.9rem; cursor: pointer; }
+    .incident-row:hover { background: #f9f9ff; }
+    .sev-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+        margin-right: 0.4rem; vertical-align: middle; }
+    .priority { font-weight: 800; color: #1c1c1e; }
+    .mono { font-family: 'DM Mono', monospace; font-size: 0.82rem; }
+    .location-cell, .time-cell { color: #636366; font-size: 0.82rem; }
+
+    .empty-state { text-align: center; padding: 3rem; color: #8e8e93; }
+    .empty-state p { margin: 0.5rem 0 1rem; }
+
+    .detail-panel { background: white; border-radius: 16px; margin: 1.5rem 2rem;
+        padding: 1.5rem; border: 1px solid #e5e5ea; }
+    .detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .detail-header h3 { margin: 0; }
+    .close-btn { background: #f2f2f7; border: none; border-radius: 50%;
+        width: 30px; height: 30px; cursor: pointer; font-size: 0.9rem; }
+</style>

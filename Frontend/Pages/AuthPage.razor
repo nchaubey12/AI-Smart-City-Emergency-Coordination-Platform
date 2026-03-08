@@ -1,0 +1,365 @@
+@page "/login"
+@page "/register"
+@using EmergencyPlatform.Frontend.Services
+@inject AuthService Auth
+@inject NavigationManager Nav
+
+<div class="auth-wrapper">
+    <div class="auth-card">
+
+        <!-- ── Logo ──────────────────────────────────────────────────── -->
+        <div class="auth-logo">
+            <div class="logo-circle">🚨</div>
+            <h1 class="auth-title">EmergencyAI</h1>
+            <p class="auth-subtitle">Smart City Coordination Platform</p>
+        </div>
+
+        <!-- ── Tabs ──────────────────────────────────────────────────── -->
+        <div class="auth-tabs">
+            <button class="auth-tab @(Mode == "login" ? "active" : "")"
+                    @onclick='() => SwitchMode("login")'>
+                Login
+            </button>
+            <button class="auth-tab @(Mode == "register" ? "active" : "")"
+                    @onclick='() => SwitchMode("register")'>
+                Register
+            </button>
+        </div>
+
+        <!-- ── Login Form ─────────────────────────────────────────────── -->
+        @if (Mode == "login")
+        {
+            <div class="auth-form">
+                <div class="field-group">
+                    <label>Email Address</label>
+                    <div class="input-wrap">
+                        <span class="input-icon">✉️</span>
+                        <input type="email" placeholder="Enter your email"
+                               @bind="LoginEmail" @bind:event="oninput" />
+                    </div>
+                </div>
+
+                <div class="field-group">
+                    <label>Password</label>
+                    <div class="input-wrap">
+                        <span class="input-icon">🔒</span>
+                        <input type="@(ShowPassword ? "text" : "password")"
+                               placeholder="Enter your password"
+                               @bind="LoginPassword" @bind:event="oninput" />
+                        <button class="toggle-pw" @onclick="() => ShowPassword = !ShowPassword">
+                            @(ShowPassword ? "🙈" : "👁")
+                        </button>
+                    </div>
+                </div>
+
+                @if (Message != null)
+                {
+                    <div class="message @(IsSuccess ? "success" : "error")">
+                        @(IsSuccess ? "✅" : "⚠️") @Message
+                    </div>
+                }
+
+                <button class="auth-btn" @onclick="DoLogin" disabled="@IsLoading">
+                    @if (IsLoading) { <span class="spinner"></span> }
+                    Login to Platform
+                </button>
+
+                <p class="switch-hint">
+                    Don't have an account?
+                    <a @onclick='() => SwitchMode("register")'>Register here</a>
+                </p>
+            </div>
+        }
+
+        <!-- ── Register Form ─────────────────────────────────────────── -->
+        @if (Mode == "register")
+        {
+            <div class="auth-form">
+                <div class="field-group">
+                    <label>Email Address</label>
+                    <div class="input-wrap">
+                        <span class="input-icon">✉️</span>
+                        <input type="email" placeholder="Enter your email"
+                               @bind="RegEmail" @bind:event="oninput" />
+                    </div>
+                </div>
+
+                <div class="field-group">
+                    <label>Phone Number</label>
+                    <div class="input-wrap">
+                        <span class="input-icon">📱</span>
+                        <input type="tel" placeholder="Enter your phone number"
+                               @bind="RegPhone" @bind:event="oninput" />
+                    </div>
+                </div>
+
+                <div class="field-group">
+                    <label>Password</label>
+                    <div class="input-wrap">
+                        <span class="input-icon">🔒</span>
+                        <input type="@(ShowPassword ? "text" : "password")"
+                               placeholder="Create a password"
+                               @bind="RegPassword" @bind:event="oninput" />
+                        <button class="toggle-pw" @onclick="() => ShowPassword = !ShowPassword">
+                            @(ShowPassword ? "🙈" : "👁")
+                        </button>
+                    </div>
+                </div>
+
+                <div class="field-group">
+                    <label>Confirm Password</label>
+                    <div class="input-wrap">
+                        <span class="input-icon">🔒</span>
+                        <input type="password" placeholder="Confirm your password"
+                               @bind="RegConfirm" @bind:event="oninput" />
+                    </div>
+                </div>
+
+                @if (Message != null)
+                {
+                    <div class="message @(IsSuccess ? "success" : "error")">
+                        @(IsSuccess ? "✅" : "⚠️") @Message
+                    </div>
+                }
+
+                <button class="auth-btn" @onclick="DoRegister" disabled="@IsLoading">
+                    @if (IsLoading) { <span class="spinner"></span> }
+                    Create Account
+                </button>
+
+                <p class="switch-hint">
+                    Already registered?
+                    <a @onclick='() => SwitchMode("login")'>Login here</a>
+                </p>
+            </div>
+        }
+
+        <!-- ── Demo Hint ──────────────────────────────────────────────── -->
+        <div class="demo-hint">
+            <strong>Demo credentials:</strong><br />
+            Email: admin@emergency.ai &nbsp;|&nbsp; Phone: 9999999999<br />
+            Password: Admin@123
+        </div>
+
+    </div>
+</div>
+
+@code {
+    string Mode = "login";
+
+    // Login fields
+    string LoginEmail    = string.Empty;
+    string LoginPassword = string.Empty;
+
+    // Register fields
+    string RegEmail   = string.Empty;
+    string RegPhone   = string.Empty;
+    string RegPassword = string.Empty;
+    string RegConfirm  = string.Empty;
+
+    bool ShowPassword = false;
+    bool IsLoading    = false;
+    bool IsSuccess    = false;
+    string? Message;
+
+    protected override void OnInitialized()
+    {
+        // If already logged in, go straight to dashboard
+        if (Auth.IsLoggedIn)
+            Nav.NavigateTo("/dashboard");
+
+        // Set initial tab based on route
+        Mode = Nav.Uri.Contains("register") ? "register" : "login";
+    }
+
+    void SwitchMode(string mode)
+    {
+        Mode    = mode;
+        Message = null;
+    }
+
+    async Task DoLogin()
+    {
+        if (string.IsNullOrWhiteSpace(LoginEmail) || string.IsNullOrWhiteSpace(LoginPassword))
+        {
+            Message   = "Please fill in all fields.";
+            IsSuccess = false;
+            return;
+        }
+
+        IsLoading = true;
+        await Task.Delay(600); // simulate network call
+
+        var (success, msg) = Auth.Login(LoginEmail, LoginPassword);
+        Message   = msg;
+        IsSuccess = success;
+        IsLoading = false;
+
+        if (success)
+        {
+            await Task.Delay(800);
+            Nav.NavigateTo("/dashboard");
+        }
+    }
+
+    async Task DoRegister()
+    {
+        if (string.IsNullOrWhiteSpace(RegEmail) ||
+            string.IsNullOrWhiteSpace(RegPhone) ||
+            string.IsNullOrWhiteSpace(RegPassword))
+        {
+            Message   = "Please fill in all fields.";
+            IsSuccess = false;
+            return;
+        }
+
+        if (RegPassword != RegConfirm)
+        {
+            Message   = "Passwords do not match.";
+            IsSuccess = false;
+            return;
+        }
+
+        IsLoading = true;
+        await Task.Delay(600);
+
+        var (success, msg) = Auth.Register(RegEmail, RegPhone, RegPassword);
+        Message   = msg;
+        IsSuccess = success;
+        IsLoading = false;
+
+        if (success)
+        {
+            await Task.Delay(1200);
+            SwitchMode("login");
+        }
+    }
+}
+
+<style>
+    .auth-wrapper {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #0d1b2a 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    .auth-card {
+        background: rgba(255,255,255,0.04);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 24px;
+        padding: 2.5rem 2rem;
+        width: 100%;
+        max-width: 420px;
+        box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+    }
+
+    /* Logo */
+    .auth-logo { text-align: center; margin-bottom: 2rem; }
+    .logo-circle {
+        width: 70px; height: 70px;
+        background: linear-gradient(135deg, #ff2d55, #ff6b35);
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 2rem;
+        margin: 0 auto 1rem;
+        box-shadow: 0 8px 24px rgba(255,45,85,0.4);
+    }
+    .auth-title {
+        color: white; font-size: 1.6rem; font-weight: 900;
+        margin: 0; letter-spacing: -0.02em;
+    }
+    .auth-subtitle { color: #8e8e93; font-size: 0.85rem; margin: 0.3rem 0 0; }
+
+    /* Tabs */
+    .auth-tabs {
+        display: flex; gap: 0.5rem;
+        background: rgba(255,255,255,0.05);
+        border-radius: 12px; padding: 0.3rem;
+        margin-bottom: 1.8rem;
+    }
+    .auth-tab {
+        flex: 1; padding: 0.6rem;
+        border: none; border-radius: 9px;
+        background: transparent; color: #8e8e93;
+        font-size: 0.95rem; font-weight: 600; cursor: pointer;
+        transition: all 0.2s;
+    }
+    .auth-tab.active {
+        background: rgba(255,255,255,0.12);
+        color: white;
+    }
+
+    /* Form */
+    .auth-form { display: flex; flex-direction: column; gap: 1rem; }
+    .field-group { display: flex; flex-direction: column; gap: 0.4rem; }
+    .field-group label { color: #aeaeb2; font-size: 0.82rem; font-weight: 600; }
+    .input-wrap {
+        display: flex; align-items: center;
+        background: rgba(255,255,255,0.07);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 12px; overflow: hidden;
+        transition: border-color 0.2s;
+    }
+    .input-wrap:focus-within { border-color: #0a84ff; }
+    .input-icon { padding: 0 0.75rem; font-size: 1rem; }
+    .input-wrap input {
+        flex: 1; background: transparent; border: none;
+        color: white; font-size: 0.95rem;
+        padding: 0.75rem 0.5rem 0.75rem 0;
+        outline: none;
+    }
+    .input-wrap input::placeholder { color: #48484a; }
+    .toggle-pw {
+        background: none; border: none; cursor: pointer;
+        padding: 0 0.75rem; font-size: 1rem;
+    }
+
+    /* Messages */
+    .message {
+        border-radius: 10px; padding: 0.7rem 1rem;
+        font-size: 0.88rem; font-weight: 600;
+    }
+    .message.error   { background: rgba(255,45,85,0.15);  color: #ff6b8a; border: 1px solid rgba(255,45,85,0.3); }
+    .message.success { background: rgba(48,209,88,0.15);  color: #34c759; border: 1px solid rgba(48,209,88,0.3); }
+
+    /* Button */
+    .auth-btn {
+        width: 100%; padding: 0.9rem;
+        background: linear-gradient(135deg, #0a84ff, #0066cc);
+        color: white; border: none; border-radius: 12px;
+        font-size: 1rem; font-weight: 700; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+        margin-top: 0.5rem;
+        box-shadow: 0 4px 16px rgba(10,132,255,0.4);
+        transition: opacity 0.2s;
+    }
+    .auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .auth-btn:hover:not(:disabled) { opacity: 0.9; }
+
+    .spinner {
+        width: 18px; height: 18px;
+        border: 3px solid rgba(255,255,255,0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+    }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+
+    .switch-hint { text-align: center; color: #636366; font-size: 0.85rem; margin: 0.5rem 0 0; }
+    .switch-hint a { color: #0a84ff; cursor: pointer; text-decoration: none; font-weight: 600; }
+
+    /* Demo hint */
+    .demo-hint {
+        margin-top: 1.5rem;
+        background: rgba(255,214,10,0.08);
+        border: 1px solid rgba(255,214,10,0.2);
+        border-radius: 10px; padding: 0.75rem 1rem;
+        font-size: 0.78rem; color: #ffd60a; text-align: center;
+        line-height: 1.6;
+    }
+</style>
