@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Emergency AI Platform</title>
+    <base href="/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+               background: #f2f2f7; color: #1c1c1e; }
+        #app { min-height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+          <symbol id="loading" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" stroke="#0a84ff" stroke-width="2" fill="none"
+                stroke-dasharray="30 60" stroke-linecap="round">
+              <animateTransform attributeName="transform" type="rotate"
+                from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/>
+            </circle>
+          </symbol>
+        </svg>
+        <div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:1rem">
+            <svg width="40" height="40"><use href="#loading"/></svg>
+            <p style="color:#636366;font-size:0.9rem">Loading Emergency Platform…</p>
+        </div>
+    </div>
+    <div id="blazor-error-ui" style="display:none;position:fixed;bottom:0;width:100%;background:#ff2d55;color:white;padding:1rem;text-align:center">
+        An unhandled error has occurred. <a href="">Reload</a>
+    </div>
+
+    <script>
+        // Geolocation JS interop for Blazor LocationPicker component
+        window.getLocation = () => new Promise((resolve, reject) => {
+            if (!navigator.geolocation) return reject('Geolocation not supported');
+            navigator.geolocation.getCurrentPosition(
+                pos => resolve([pos.coords.latitude, pos.coords.longitude]),
+                err => reject(err.message)
+            );
+        });
+    </script>
+
+    <script src="_framework/blazor.webassembly.js"></script>
+</body>
+</html>

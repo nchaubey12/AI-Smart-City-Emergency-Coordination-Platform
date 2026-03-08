@@ -1,0 +1,71 @@
+@inject IJSRuntime JS
+
+<div class="location-picker">
+    <div class="location-header">
+        <span class="field-label">📍 Location (optional)</span>
+        <button type="button" class="geo-btn" @onclick="GetGeolocation">Use My Location</button>
+    </div>
+    <div class="coord-row">
+        <div class="coord-field">
+            <label>Latitude</label>
+            <input type="number" step="any" placeholder="e.g. 40.7128"
+                   value="@Lat" @onchange="OnLatChange" />
+        </div>
+        <div class="coord-field">
+            <label>Longitude</label>
+            <input type="number" step="any" placeholder="e.g. -74.0060"
+                   value="@Lon" @onchange="OnLonChange" />
+        </div>
+    </div>
+    @if (GeoError != null)
+    {
+        <p class="geo-error">@GeoError</p>
+    }
+</div>
+
+@code {
+    [Parameter] public double? Lat { get; set; }
+    [Parameter] public EventCallback<double?> LatChanged { get; set; }
+    [Parameter] public double? Lon { get; set; }
+    [Parameter] public EventCallback<double?> LonChanged { get; set; }
+
+    string? GeoError;
+
+    async Task OnLatChange(ChangeEventArgs e) =>
+        await LatChanged.InvokeAsync(e.Value == null ? null : double.Parse(e.Value.ToString()!));
+
+    async Task OnLonChange(ChangeEventArgs e) =>
+        await LonChanged.InvokeAsync(e.Value == null ? null : double.Parse(e.Value.ToString()!));
+
+    async Task GetGeolocation()
+    {
+        GeoError = null;
+        try
+        {
+            var coords = await JS.InvokeAsync<double[]>("getLocation");
+            if (coords?.Length >= 2)
+            {
+                await LatChanged.InvokeAsync(coords[0]);
+                await LonChanged.InvokeAsync(coords[1]);
+            }
+        }
+        catch
+        {
+            GeoError = "Geolocation unavailable – please enter coordinates manually.";
+        }
+    }
+}
+
+<style>
+    .location-picker { margin-top: 1rem; padding: 0.75rem; background: #f9f9f9;
+        border-radius: 10px; border: 1px solid #e5e5ea; }
+    .location-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .geo-btn { background: none; border: 1px solid #0a84ff; color: #0a84ff;
+        border-radius: 6px; padding: 0.3rem 0.7rem; font-size: 0.8rem; cursor: pointer; }
+    .coord-row { display: flex; gap: 0.75rem; }
+    .coord-field { flex: 1; display: flex; flex-direction: column; gap: 0.2rem; }
+    .coord-field label { font-size: 0.75rem; color: #636366; font-weight: 600; }
+    .coord-field input { border: 1px solid #d1d1d6; border-radius: 8px;
+        padding: 0.45rem 0.6rem; font-size: 0.9rem; }
+    .geo-error { color: #ff3b30; font-size: 0.8rem; margin: 0.4rem 0 0; }
+</style>

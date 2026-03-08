@@ -1,0 +1,25 @@
+@using EmergencyPlatform.Frontend.Services
+@inject AuthService Auth
+@inject NavigationManager Nav
+
+@if (Auth.IsLoggedIn)
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Auth.OnAuthStateChanged += StateHasChanged;
+
+        if (!Auth.IsLoggedIn)
+            Nav.NavigateTo("/login");
+    }
+
+    public void Dispose()
+    {
+        Auth.OnAuthStateChanged -= StateHasChanged;
+    }
+}
