@@ -31,11 +31,31 @@
 
     string? GeoError;
 
-    async Task OnLatChange(ChangeEventArgs e) =>
-        await LatChanged.InvokeAsync(e.Value == null ? null : double.Parse(e.Value.ToString()!));
+    async Task OnLatChange(ChangeEventArgs e)
+    {
+        var s = e.Value?.ToString();
+        double? v = null;
+        if (!string.IsNullOrWhiteSpace(s) &&
+            double.TryParse(s, System.Globalization.NumberStyles.Float,
+                            System.Globalization.CultureInfo.InvariantCulture, out var d))
+        {
+            v = d;
+        }
+        await LatChanged.InvokeAsync(v);
+    }
 
-    async Task OnLonChange(ChangeEventArgs e) =>
-        await LonChanged.InvokeAsync(e.Value == null ? null : double.Parse(e.Value.ToString()!));
+    async Task OnLonChange(ChangeEventArgs e)
+    {
+        var s = e.Value?.ToString();
+        double? v = null;
+        if (!string.IsNullOrWhiteSpace(s) &&
+            double.TryParse(s, System.Globalization.NumberStyles.Float,
+                            System.Globalization.CultureInfo.InvariantCulture, out var d))
+        {
+            v = d;
+        }
+        await LonChanged.InvokeAsync(v);
+    }
 
     async Task GetGeolocation()
     {
