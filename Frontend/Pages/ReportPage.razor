@@ -1,33 +1,25 @@
 @page "/report"
 @using EmergencyPlatform.Frontend.Models
 @using EmergencyPlatform.Frontend.Services
-@inject AuthService Auth
-@inject ReportApiService ReportApi
-@inject NavigationManager Nav
+@inject EmergencyApiService Api
+@inject IJSRuntime JS
 
 <PageTitle>Submit Incident Report</PageTitle>
 
-@if (!Auth.IsLoggedIn)
-{
-    <p>Redirecting...</p>
-}
-else
-{
 <div class="report-page">
     <div class="report-header">
         <span class="status-dot"></span>
-        <h1>Submit Incident Report</h1>
-        <p class="subtitle">Logged in as <strong>@Auth.CurrentUser!.Name</strong>
-            (@Auth.CurrentUser.Role)</p>
+        <h1>Emergency Incident Reporting</h1>
+        <p class="subtitle">AI-Powered Multi-Modal Analysis System</p>
     </div>
 
-    <!-- ── Input Type Tabs ────────────────────────────────────────────── -->
+    <!-- ── Input Type Selector ─────────────────────────────────────────── -->
     <div class="tab-bar">
         @foreach (var tab in new[] { "Text", "Image", "Audio" })
         {
             <button class="tab @(ActiveTab == tab ? "active" : "")"
-                    @onclick="() => { ActiveTab = tab; }">
-                @TabIcon(tab) @tab
+                    @onclick="() => ActiveTab = tab">
+                <span class="tab-icon">@TabIcon(tab)</span> @tab
             </button>
         }
     </div>
@@ -38,12 +30,15 @@ else
         <div class="panel">
             <label class="field-label">Incident Description</label>
             <textarea class="text-input" rows="5"
-                      placeholder="Describe the emergency: what is happening, where, how many people…"
+                      placeholder="Describe the emergency: location, what is happening, how many people involved…"
                       @bind="TextInput" @bind:event="oninput"></textarea>
             <div class="char-count">@TextInput.Length characters</div>
-            <LocationRow @bind-Lat="UserLat" @bind-Lon="UserLon" />
-            <button class="submit-btn" @onclick="SubmitText" disabled="@(IsLoading || string.IsNullOrWhiteSpace(TextInput))">
-                @if (IsLoading) { <span class="spinner"></span> } Analyze & Submit
+
+            <LocationPicker @bind-Lat="UserLat" @bind-Lon="UserLon" />
+
+            <button class="submit-btn" @onclick="SubmitText" disabled="@IsLoading">
+                @if (IsLoading) { <span class="spinner"></span> }
+                Analyze Report
             </button>
         </div>
     }
@@ -53,28 +48,32 @@ else
     {
         <div class="panel">
             <label class="field-label">Upload Incident Image</label>
-            <div class="drop-zone">
+            <div class="drop-zone @(DragOver ? "drag-active" : "")"
+                 @ondragover="() => DragOver = true"
+                 @ondragleave="() => DragOver = false"
+                 @ondrop="HandleDrop">
                 @if (ImagePreview != null)
                 {
                     <img class="preview-img" src="@ImagePreview" alt="Preview" />
                 }
                 else
                 {
-                    <div class="drop-hint"><span style="font-size:2.5rem">📸</span>
-                        <p>Click to select image</p><p class="drop-sub">JPEG or PNG, max 20 MB</p>
+                    <div class="drop-hint">
+                        <span class="drop-icon">📸</span>
+                        <p>Drag & drop or click to upload</p>
+                        <p class="drop-sub">JPEG, PNG up to 20 MB</p>
                     </div>
                 }
-                <InputFile OnChange="HandleFileChange" accept="image/*" class="file-overlay" />
+                <InputFile OnChange="HandleFileChange" accept="image/*"
+                           class="file-input-overlay" />
             </div>
-            <div class="field-group" style="margin-top:0.8rem">
-                <label class="field-label">Additional Description (optional)</label>
-                <input class="text-input-sm" type="text" placeholder="Add context about the image…"
-                       @bind="TextInput" @bind:event="oninput" />
-            </div>
-            <LocationRow @bind-Lat="UserLat" @bind-Lon="UserLon" />
+
+            <LocationPicker @bind-Lat="UserLat" @bind-Lon="UserLon" />
+
             <button class="submit-btn" @onclick="SubmitImage"
                     disabled="@(IsLoading || UploadedFile == null)">
-                @if (IsLoading) { <span class="spinner"></span> } Analyze Image & Submit
+                @if (IsLoading) { <span class="spinner"></span> }
+                Analyze Image
             </button>
         </div>
     }
@@ -85,195 +84,195 @@ else
         <div class="panel">
             <label class="field-label">Voice Report</label>
             <div class="audio-zone">
-                <p class="audio-note">Paste base64-encoded WAV audio below:</p>
-                <textarea class="text-input" rows="3"
-                          placeholder="Paste base64 audio string here…"
+                @if (!IsRecording)
+                {
+                    <button class="record-btn" @onclick="StartRecording">
+                        🎙️ Start Recording
+                    </button>
+                }
+                else
+                {
+                    <button class="record-btn recording" @onclick="StopRecording">
+                        ⏹ Stop Recording
+                    </button>
+                    <div class="recording-indicator">
+                        <span class="rec-dot"></span> Recording…
+                    </div>
+                }
+                @if (AudioBase64 != null)
+                {
+                    <p class="audio-ready">✅ Audio captured – ready to analyze</p>
+                }
+                <p class="audio-note">
+                    Or paste a base64-encoded WAV string below:
+                </p>
+                <textarea class="text-input small" rows="2"
+                          placeholder="Optional: paste base64 audio…"
                           @bind="AudioBase64" @bind:event="oninput"></textarea>
             </div>
-            <LocationRow @bind-Lat="UserLat" @bind-Lon="UserLon" />
+
+            <LocationPicker @bind-Lat="UserLat" @bind-Lon="UserLon" />
+
             <button class="submit-btn" @onclick="SubmitAudio"
                     disabled="@(IsLoading || string.IsNullOrEmpty(AudioBase64))">
-                @if (IsLoading) { <span class="spinner"></span> } Transcribe & Submit
+                @if (IsLoading) { <span class="spinner"></span> }
+                Analyze Voice Report
             </button>
         </div>
     }
 
-    <!-- ── Error ──────────────────────────────────────────────────────── -->
-    @if (ErrorMsg != null)
+    <!-- ── Error Banner ───────────────────────────────────────────────── -->
+    @if (ErrorMessage != null)
     {
-        <div class="error-banner">⚠️ @ErrorMsg</div>
+        <div class="error-banner">⚠️ @ErrorMessage</div>
     }
 
-    <!-- ── Success for User role ──────────────────────────────────────── -->
-    @if (UserThankYou)
+    <!-- ── Result Card ────────────────────────────────────────────────── -->
+    @if (Report != null)
     {
-        <div class="thankyou-card">
-            <div class="ty-icon">✅</div>
-            <h2>Report Submitted</h2>
-            <p>Thank you for your information. We will forward this message to the appropriate authority.</p>
-            <p class="report-ref">Reference ID: <strong>@SubmittedReportId</strong></p>
-            <button class="submit-btn outline" @onclick="ResetForm">Submit Another Report</button>
-        </div>
-    }
-
-    <!-- ── Analysis Result for Admin role ────────────────────────────── -->
-    @if (Analysis != null && Auth.IsAdmin)
-    {
-        <IncidentResultCard Report="Analysis" />
+        <IncidentResultCard Report="Report" />
     }
 </div>
-}
 
 @code {
     string ActiveTab = "Text";
-    string TextInput = "", AudioBase64 = "";
-    string? ImagePreview, ErrorMsg, SubmittedReportId;
+    string TextInput = string.Empty;
+    string? ImagePreview;
+    string? AudioBase64;
     IBrowserFile? UploadedFile;
-    bool IsLoading, UserThankYou;
+    bool DragOver, IsLoading, IsRecording;
+    string? ErrorMessage;
+    IncidentReportViewModel? Report;
     double? UserLat, UserLon;
-    IncidentReportViewModel? Analysis;
 
-    static string TabIcon(string t) => t switch { "Text" => "📝", "Image" => "🖼", _ => "🎙" };
-
-    protected override void OnInitialized()
+    static string TabIcon(string tab) => tab switch
     {
-        if (!Auth.IsLoggedIn) Nav.NavigateTo("/login");
-    }
+        "Text"  => "📝",
+        "Image" => "🖼",
+        "Audio" => "🎙",
+        _       => "?"
+    };
 
     async Task SubmitText()
     {
-        await RunSubmit(new SubmitReportRequest
-        {
-            InputType   = "text",
-            Description = TextInput,
-            Lat = UserLat, Lon = UserLon
-        });
+        if (string.IsNullOrWhiteSpace(TextInput)) return;
+        await RunWithLoading(async () =>
+            Report = await Api.SubmitTextAsync(TextInput, UserLat, UserLon));
     }
 
     async Task SubmitImage()
     {
         if (UploadedFile == null) return;
-        using var ms = new MemoryStream();
-        using var stream = UploadedFile.OpenReadStream(20 * 1024 * 1024);
-        await stream.CopyToAsync(ms);
-        var base64 = Convert.ToBase64String(ms.ToArray());
-
-        await RunSubmit(new SubmitReportRequest
+        await RunWithLoading(async () =>
         {
-            InputType   = "image",
-            Description = TextInput,
-            Base64Image = base64,
-            MimeType    = UploadedFile.ContentType,
-            Lat = UserLat, Lon = UserLon
+            using var stream = UploadedFile.OpenReadStream(20 * 1024 * 1024);
+            Report = await Api.SubmitImageFileAsync(
+                stream, UploadedFile.Name, UploadedFile.ContentType, UserLat, UserLon);
         });
     }
 
     async Task SubmitAudio()
     {
-        await RunSubmit(new SubmitReportRequest
-        {
-            InputType   = "audio",
-            Base64Audio = AudioBase64,
-            MimeType    = "audio/wav",
-            Lat = UserLat, Lon = UserLon
-        });
-    }
-
-    async Task RunSubmit(SubmitReportRequest req)
-    {
-        IsLoading   = true;
-        ErrorMsg    = null;
-        UserThankYou = false;
-        Analysis    = null;
-
-        req.UserId    = Auth.CurrentUser!.UserId;
-        req.UserName  = Auth.CurrentUser.Name;
-        req.UserEmail = Auth.CurrentUser.Email;
-        req.UserRole  = Auth.CurrentUser.Role;
-
-        var result = await ReportApi.SubmitAsync(req);
-        IsLoading = false;
-
-        if (!result.Success) { ErrorMsg = result.Message; return; }
-
-        SubmittedReportId = result.ReportId;
-
-        if (Auth.IsAdmin && result.Analysis != null)
-            Analysis = result.Analysis;
-        else
-            UserThankYou = true;
+        if (string.IsNullOrEmpty(AudioBase64)) return;
+        await RunWithLoading(async () =>
+            Report = await Api.SubmitAudioAsync(AudioBase64, "audio/wav", UserLat, UserLon));
     }
 
     async Task HandleFileChange(InputFileChangeEventArgs e)
     {
         UploadedFile = e.File;
-        using var ms = new MemoryStream();
-        using var s = e.File.OpenReadStream(20 * 1024 * 1024);
-        await s.CopyToAsync(ms);
-        ImagePreview = $"data:{e.File.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+        using var stream = e.File.OpenReadStream(20 * 1024 * 1024);
+        using var ms     = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        var bytes   = ms.ToArray();
+        ImagePreview = $"data:{e.File.ContentType};base64,{Convert.ToBase64String(bytes)}";
     }
 
-    void ResetForm()
+    void HandleDrop() => DragOver = false;
+
+    async Task StartRecording() => IsRecording = true;
+    async Task StopRecording()
     {
-        TextInput = ""; AudioBase64 = ""; ImagePreview = null;
-        UploadedFile = null; UserThankYou = false; Analysis = null;
-        SubmittedReportId = null;
+        IsRecording = false;
+        // In production, call JS interop to capture MediaRecorder data
+    }
+
+    async Task RunWithLoading(Func<Task> action)
+    {
+        IsLoading    = true;
+        ErrorMessage = null;
+        Report       = null;
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Analysis failed: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
     }
 }
 
 <style>
-    .report-page { max-width:720px; margin:0 auto; padding:2rem 1rem; font-family:-apple-system,sans-serif; }
-    .report-header { text-align:center; margin-bottom:2rem; }
-    .report-header h1 { font-size:1.7rem; font-weight:900; margin:0; color:#1c1c1e; }
-    .subtitle { color:#636366; margin:0.3rem 0 0; font-size:0.9rem; }
-    .status-dot { display:inline-block; width:9px; height:9px; border-radius:50%;
-        background:#30d158; margin-bottom:0.5rem; animation:pulse 1.5s infinite; }
-    @@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+    .report-page { max-width: 760px; margin: 0 auto; padding: 2rem 1rem; }
+    .report-header { text-align: center; margin-bottom: 2rem; }
+    .report-header h1 { font-family: 'DM Mono', monospace; font-size: 1.8rem; margin: 0; color: #1c1c1e; }
+    .subtitle { color: #636366; margin: 0.3rem 0 0; }
+    .status-dot { display: inline-block; width: 10px; height: 10px;
+        border-radius: 50%; background: #30d158; margin-bottom: 0.5rem;
+        animation: pulse 1.5s infinite; }
+    @@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
-    .tab-bar { display:flex; gap:0.5rem; margin-bottom:1.5rem; }
-    .tab { flex:1; padding:0.65rem; border:2px solid #e5e5ea; border-radius:10px;
-        background:white; cursor:pointer; font-size:0.9rem; font-weight:600; color:#636366; }
-    .tab.active { border-color:#0a84ff; color:#0a84ff; background:#e8f4ff; }
+    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .tab { flex: 1; padding: 0.7rem; border: 2px solid #e5e5ea; border-radius: 10px;
+        background: white; cursor: pointer; font-size: 0.95rem; font-weight: 600;
+        color: #636366; transition: all 0.15s; }
+    .tab.active { border-color: #0a84ff; color: #0a84ff; background: #e8f4ff; }
+    .tab-icon { margin-right: 0.3rem; }
 
-    .panel { background:white; border:1px solid #e5e5ea; border-radius:16px;
-        padding:1.5rem; margin-bottom:1.5rem; }
-    .field-label { font-weight:700; font-size:0.8rem; text-transform:uppercase;
-        letter-spacing:0.05em; color:#48484a; display:block; margin-bottom:0.5rem; }
-    .text-input { width:100%; border:1px solid #d1d1d6; border-radius:10px;
-        padding:0.8rem; font-size:0.92rem; resize:vertical; box-sizing:border-box; font-family:inherit; }
-    .text-input:focus { outline:none; border-color:#0a84ff; }
-    .text-input-sm { width:100%; border:1px solid #d1d1d6; border-radius:10px;
-        padding:0.6rem 0.8rem; font-size:0.9rem; box-sizing:border-box; }
-    .char-count { font-size:0.72rem; color:#8e8e93; text-align:right; margin-top:0.2rem; }
-    .field-group { display:flex; flex-direction:column; gap:0.3rem; }
+    .panel { background: white; border: 1px solid #e5e5ea; border-radius: 16px;
+        padding: 1.5rem; margin-bottom: 1.5rem; }
+    .field-label { font-weight: 700; font-size: 0.85rem; text-transform: uppercase;
+        letter-spacing: 0.05em; color: #48484a; display: block; margin-bottom: 0.5rem; }
+    .text-input { width: 100%; border: 1px solid #d1d1d6; border-radius: 10px;
+        padding: 0.8rem; font-size: 0.95rem; resize: vertical; box-sizing: border-box;
+        font-family: inherit; }
+    .text-input:focus { outline: none; border-color: #0a84ff; }
+    .text-input.small { resize: none; }
+    .char-count { font-size: 0.75rem; color: #8e8e93; text-align: right; margin-top: 0.25rem; }
 
-    .drop-zone { border:2px dashed #c7c7cc; border-radius:12px; position:relative;
-        min-height:160px; display:flex; align-items:center; justify-content:center;
-        cursor:pointer; overflow:hidden; }
-    .drop-hint { text-align:center; color:#8e8e93; }
-    .drop-sub { font-size:0.78rem; }
-    .preview-img { max-height:220px; max-width:100%; border-radius:8px; }
-    .file-overlay { position:absolute; inset:0; opacity:0; cursor:pointer; }
-    .audio-zone { padding:0.5rem 0; }
-    .audio-note { font-size:0.83rem; color:#8e8e93; margin:0 0 0.5rem; }
+    .drop-zone { border: 2px dashed #c7c7cc; border-radius: 12px; position: relative;
+        min-height: 180px; display: flex; align-items: center; justify-content: center;
+        cursor: pointer; overflow: hidden; transition: border-color 0.15s; }
+    .drop-zone.drag-active { border-color: #0a84ff; background: #f0f7ff; }
+    .drop-hint { text-align: center; color: #8e8e93; }
+    .drop-icon { font-size: 2rem; }
+    .drop-sub { font-size: 0.8rem; }
+    .preview-img { max-height: 240px; max-width: 100%; border-radius: 8px; }
+    .file-input-overlay { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
-    .submit-btn { width:100%; margin-top:1rem; padding:0.85rem;
-        background:#0a84ff; color:white; border:none; border-radius:12px;
-        font-size:0.95rem; font-weight:700; cursor:pointer;
-        display:flex; align-items:center; justify-content:center; gap:0.5rem; }
-    .submit-btn:disabled { opacity:0.5; cursor:not-allowed; }
-    .submit-btn.outline { background:transparent; border:2px solid #0a84ff; color:#0a84ff; }
-    .spinner { width:16px; height:16px; border:2.5px solid rgba(255,255,255,0.3);
-        border-top-color:white; border-radius:50%; animation:spin 0.7s linear infinite; }
-    @@keyframes spin { to { transform:rotate(360deg); } }
-    .error-banner { background:#fff0f2; border:1px solid #ff2d55; border-radius:10px;
-        padding:0.9rem; color:#ff2d55; font-weight:600; margin-bottom:1rem; }
+    .audio-zone { text-align: center; padding: 1rem 0; }
+    .record-btn { background: #0a84ff; color: white; border: none; border-radius: 50px;
+        padding: 0.8rem 2rem; font-size: 1rem; font-weight: 700; cursor: pointer; }
+    .record-btn.recording { background: #ff2d55; }
+    .recording-indicator { color: #ff2d55; font-weight: 600; margin-top: 0.5rem; }
+    .rec-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+        background: #ff2d55; animation: pulse 0.8s infinite; }
+    .audio-ready { color: #30d158; font-weight: 600; margin: 0.5rem 0; }
+    .audio-note { font-size: 0.85rem; color: #8e8e93; margin: 1rem 0 0.3rem; }
 
-    .thankyou-card { background:white; border:2px solid #30d158; border-radius:20px;
-        padding:2.5rem; text-align:center; margin-top:1.5rem; }
-    .ty-icon { font-size:3rem; margin-bottom:1rem; }
-    .thankyou-card h2 { color:#1c1c1e; font-size:1.4rem; margin:0 0 0.75rem; }
-    .thankyou-card p { color:#636366; margin:0.3rem 0; line-height:1.6; }
-    .report-ref { font-size:0.85rem; margin-top:0.75rem !important; }
-    .report-ref strong { font-family:monospace; color:#1c1c1e; }
+    .submit-btn { width: 100%; margin-top: 1rem; padding: 0.9rem; background: #0a84ff;
+        color: white; border: none; border-radius: 12px; font-size: 1rem; font-weight: 700;
+        cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .spinner { width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.3);
+        border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-banner { background: #fff0f2; border: 1px solid #ff2d55; border-radius: 10px;
+        padding: 1rem; color: #ff2d55; font-weight: 600; margin-bottom: 1rem; }
 </style>

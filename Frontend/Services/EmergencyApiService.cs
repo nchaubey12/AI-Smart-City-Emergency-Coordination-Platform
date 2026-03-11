@@ -1,7 +1,6 @@
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using System.Globalization;
 using EmergencyPlatform.Frontend.Models;
 
 namespace EmergencyPlatform.Frontend.Services;
@@ -52,8 +51,8 @@ public class EmergencyApiService
         using var form = new MultipartFormDataContent();
         form.Add(new StreamContent(imageStream) { Headers = { ContentType = new(contentType) } },
             "file", fileName);
-        if (lat.HasValue) form.Add(new StringContent(lat.Value.ToString(CultureInfo.InvariantCulture)), "lat");
-        if (lon.HasValue) form.Add(new StringContent(lon.Value.ToString(CultureInfo.InvariantCulture)), "lon");
+        if (lat.HasValue) form.Add(new StringContent(lat.Value.ToString()), "lat");
+        if (lon.HasValue) form.Add(new StringContent(lon.Value.ToString()), "lon");
 
         var resp = await _http.PostAsync("api/emergency/image/upload", form);
         resp.EnsureSuccessStatusCode();

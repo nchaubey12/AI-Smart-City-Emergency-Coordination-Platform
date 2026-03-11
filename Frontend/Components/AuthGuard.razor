@@ -12,7 +12,14 @@
 
     protected override void OnInitialized()
     {
+        Auth.OnAuthStateChanged += StateHasChanged;
+
         if (!Auth.IsLoggedIn)
             Nav.NavigateTo("/login");
+    }
+
+    public void Dispose()
+    {
+        Auth.OnAuthStateChanged -= StateHasChanged;
     }
 }
