@@ -22,6 +22,8 @@ builder.Services.AddSingleton<AzureSpeechService>();
 builder.Services.AddSingleton<AzureMapsService>();
 builder.Services.AddSingleton<ServiceBusPublisher>();
 
+builder.Services.AddSingleton<JsonStorageService>();
+
 // Agents
 builder.Services.AddScoped<NlpTextAgent>();
 builder.Services.AddScoped<VisionAgent>();
@@ -36,6 +38,11 @@ builder.Services.AddCors(opts =>
         .AllowAnyMethod()
         .AllowAnyHeader()));
 
+builder.Services.AddCors(opts =>
+    opts.AddDefaultPolicy(p => p
+        .WithOrigins("http://localhost:5002", "https://localhost:5002")
+        .AllowAnyMethod()
+        .AllowAnyHeader()));
 // Increase multipart limits for image uploads
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
 {
@@ -51,9 +58,15 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+app.UseSwagger();
+app.UseSwaggerUI();
 
-app.UseCors();
+app.UseRouting();     
+
+app.UseCors();        
+
 app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();
