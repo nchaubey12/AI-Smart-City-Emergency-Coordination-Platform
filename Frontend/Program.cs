@@ -8,9 +8,14 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 builder.Services.AddScoped(sp => new HttpClient
 {
-    BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "https://localhost:5000/")
+    BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5000/")
 });
 
 builder.Services.AddScoped<EmergencyApiService>();
-builder.Services.AddSingleton<AuthService>();
+
+// ── CHANGE Singleton → Scoped for both ───────────────────────────────────────
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<ReportApiService>();
+// ─────────────────────────────────────────────────────────────────────────────
+
 await builder.Build().RunAsync();
