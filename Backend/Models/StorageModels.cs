@@ -19,7 +19,7 @@ public class AppUser
     public string PasswordHash { get; set; } = string.Empty;
 
     [JsonPropertyName("role")]
-    public string Role { get; set; } = "User"; // "Admin" or "User"
+    public string Role { get; set; } = "User";
 
     [JsonPropertyName("phone")]
     public string Phone { get; set; } = string.Empty;
@@ -42,7 +42,7 @@ public class StoredReport
     public string ReportId { get; set; } = Guid.NewGuid().ToString("N")[..8].ToUpper();
 
     [JsonPropertyName("incidentKey")]
-    public string IncidentKey { get; set; } = string.Empty; // used for deduplication
+    public string IncidentKey { get; set; } = string.Empty;
 
     [JsonPropertyName("userId")]
     public string UserId { get; set; } = string.Empty;
@@ -86,8 +86,17 @@ public class AggregatedIncident
     [JsonPropertyName("incidentType")]
     public string IncidentType { get; set; } = string.Empty;
 
+    // AI suggested severity
     [JsonPropertyName("severityLevel")]
     public string SeverityLevel { get; set; } = string.Empty;
+
+    // Admin override severity (if set, this takes precedence)
+    [JsonPropertyName("adminSeverity")]
+    public string? AdminSeverity { get; set; }
+
+    // Effective severity = AdminSeverity ?? SeverityLevel
+    [JsonIgnore]
+    public string EffectiveSeverity => AdminSeverity ?? SeverityLevel;
 
     [JsonPropertyName("location")]
     public string Location { get; set; } = string.Empty;
@@ -107,11 +116,45 @@ public class AggregatedIncident
     [JsonPropertyName("reportCount")]
     public int ReportCount { get; set; } = 1;
 
+    // AI suggested dispatch units
     [JsonPropertyName("dispatchUnits")]
     public List<string> DispatchUnits { get; set; } = new();
 
+    // Admin can add extra units or override entirely
+    [JsonPropertyName("adminDispatchUnits")]
+    public List<string> AdminDispatchUnits { get; set; } = new();
+
+    // Effective units = union of AI + admin units
+    [JsonIgnore]
+    public List<string> EffectiveDispatchUnits =>
+        DispatchUnits.Union(AdminDispatchUnits, StringComparer.OrdinalIgnoreCase).ToList();
+
     [JsonPropertyName("priority")]
     public int Priority { get; set; }
+
+    // ── Status & Human-in-loop ────────────────────────────────────────────────
+
+    // open | accepted | resolved
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = "open";
+
+    [JsonPropertyName("acceptedAt")]
+    public DateTime? AcceptedAt { get; set; }
+
+    [JsonPropertyName("acceptedBy")]
+    public string? AcceptedBy { get; set; }
+
+    [JsonPropertyName("resolvedAt")]
+    public DateTime? ResolvedAt { get; set; }
+
+    [JsonPropertyName("resolvedBy")]
+    public string? ResolvedBy { get; set; }
+
+    [JsonPropertyName("adminNotes")]
+    public string AdminNotes { get; set; } = string.Empty;
+
+    [JsonPropertyName("dispatchTriggeredAt")]
+    public DateTime? DispatchTriggeredAt { get; set; }
 
     [JsonPropertyName("reports")]
     public List<StoredReport> Reports { get; set; } = new();
@@ -123,7 +166,7 @@ public class ReportStore
     public List<AggregatedIncident> Incidents { get; set; } = new();
 }
 
-// ── Auth Request / Response DTOs ──────────────────────────────────────────────
+// ── Auth DTOs ─────────────────────────────────────────────────────────────────
 
 public class RegisterRequest
 {
@@ -132,7 +175,7 @@ public class RegisterRequest
     public string Phone    { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
     public string Role     { get; set; } = "User";
-    public string AdminKey { get; set; } = string.Empty; // required to register as Admin
+    public string AdminKey { get; set; } = string.Empty;
 }
 
 public class LoginRequest
@@ -149,10 +192,10 @@ public class AuthResponse
     public string? Name   { get; set; }
     public string? Email  { get; set; }
     public string? Role   { get; set; }
-    public string? Token  { get; set; } // simple session token
+    public string? Token  { get; set; }
 }
 
-// ── Submit Report DTO ─────────────────────────────────────────────────────────
+// ── Report DTOs ───────────────────────────────────────────────────────────────
 
 public class SubmitReportRequest
 {
@@ -174,5 +217,27 @@ public class SubmitReportResponse
     public bool   Success    { get; set; }
     public string Message    { get; set; } = string.Empty;
     public string? ReportId  { get; set; }
-    public IncidentReport? Analysis { get; set; } // only returned for Admin role
+    public IncidentReport? Analysis { get; set; }
+}
+
+// ── Admin Action DTOs ─────────────────────────────────────────────────────────
+
+public class UpdateIncidentRequest
+{
+    public string AdminName         { get; set; } = string.Empty;
+    public string? AdminSeverity    { get; set; }           // override severity
+    public List<string>? AdminDispatchUnits { get; set; }  // extra/override units
+    public string? AdminNotes       { get; set; }
+}
+
+public class AcceptIncidentRequest
+{
+    public string AdminName { get; set; } = string.Empty;
+    public string? Notes    { get; set; }
+}
+
+public class ResolveIncidentRequest
+{
+    public string AdminName { get; set; } = string.Empty;
+    public string? Notes    { get; set; }
 }

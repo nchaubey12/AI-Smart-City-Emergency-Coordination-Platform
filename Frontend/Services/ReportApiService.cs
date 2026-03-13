@@ -29,9 +29,8 @@ public class ReportApiService
     {
         try
         {
-            var resp = await _http.GetFromJsonAsync<List<AggregatedIncidentSummary>>(
-                $"api/reports/incidents?role={role}", _opts);
-            return resp ?? new();
+            return await _http.GetFromJsonAsync<List<AggregatedIncidentSummary>>(
+                $"api/reports/incidents?role={role}", _opts) ?? new();
         }
         catch { return new(); }
     }
@@ -44,5 +43,43 @@ public class ReportApiService
                 $"api/reports/incidents/{Uri.EscapeDataString(key)}/details?role={role}", _opts);
         }
         catch { return null; }
+    }
+
+    public async Task<(bool Success, string Message)> UpdateIncidentAsync(
+        string key, string role, UpdateIncidentRequest req)
+    {
+        try
+        {
+            var resp = await _http.PatchAsJsonAsync(
+                $"api/reports/incidents/{Uri.EscapeDataString(key)}/update?role={role}", req);
+            return (resp.IsSuccessStatusCode, resp.IsSuccessStatusCode ? "Updated." : "Failed.");
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    public async Task<(bool Success, string Message)> AcceptIncidentAsync(
+        string key, string role, AcceptIncidentRequest req)
+    {
+        try
+        {
+            var resp = await _http.PostAsJsonAsync(
+                $"api/reports/incidents/{Uri.EscapeDataString(key)}/accept?role={role}", req);
+            return (resp.IsSuccessStatusCode, resp.IsSuccessStatusCode
+                ? "Dispatch triggered successfully." : "Failed to accept.");
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    public async Task<(bool Success, string Message)> ResolveIncidentAsync(
+        string key, string role, ResolveIncidentRequest req)
+    {
+        try
+        {
+            var resp = await _http.PostAsJsonAsync(
+                $"api/reports/incidents/{Uri.EscapeDataString(key)}/resolve?role={role}", req);
+            return (resp.IsSuccessStatusCode, resp.IsSuccessStatusCode
+                ? "Incident marked as resolved." : "Failed to resolve.");
+        }
+        catch (Exception ex) { return (false, ex.Message); }
     }
 }

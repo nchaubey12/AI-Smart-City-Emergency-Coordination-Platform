@@ -31,8 +31,6 @@ public class AuthResponse
     [JsonPropertyName("token")]    public string? Token  { get; set; }
 }
 
-// ── Session ───────────────────────────────────────────────────────────────────
-
 public class UserSession
 {
     public string UserId { get; set; } = string.Empty;
@@ -71,19 +69,36 @@ public class SubmitReportResponse
 
 public class AggregatedIncidentSummary
 {
-    [JsonPropertyName("incidentKey")]     public string IncidentKey   { get; set; } = string.Empty;
-    [JsonPropertyName("incidentType")]    public string IncidentType  { get; set; } = string.Empty;
-    [JsonPropertyName("severityLevel")]   public string SeverityLevel { get; set; } = string.Empty;
-    [JsonPropertyName("location")]        public string Location      { get; set; } = string.Empty;
-    [JsonPropertyName("lat")]             public double? Lat          { get; set; }
-    [JsonPropertyName("lon")]             public double? Lon          { get; set; }
-    [JsonPropertyName("firstReportedAt")] public DateTime FirstReportedAt { get; set; }
-    [JsonPropertyName("lastReportedAt")]  public DateTime LastReportedAt  { get; set; }
-    [JsonPropertyName("reportCount")]     public int ReportCount      { get; set; }
-    [JsonPropertyName("dispatchUnits")]   public List<string> DispatchUnits { get; set; } = new();
-    [JsonPropertyName("priority")]        public int Priority         { get; set; }
+    [JsonPropertyName("incidentKey")]          public string IncidentKey       { get; set; } = string.Empty;
+    [JsonPropertyName("incidentType")]         public string IncidentType      { get; set; } = string.Empty;
+    [JsonPropertyName("severityLevel")]        public string SeverityLevel     { get; set; } = string.Empty;
+    [JsonPropertyName("adminSeverity")]        public string? AdminSeverity    { get; set; }
+    [JsonPropertyName("effectiveSeverity")]    public string EffectiveSeverity { get; set; } = string.Empty;
+    [JsonPropertyName("location")]             public string Location          { get; set; } = string.Empty;
+    [JsonPropertyName("lat")]                  public double? Lat              { get; set; }
+    [JsonPropertyName("lon")]                  public double? Lon              { get; set; }
+    [JsonPropertyName("firstReportedAt")]      public DateTime FirstReportedAt { get; set; }
+    [JsonPropertyName("lastReportedAt")]       public DateTime LastReportedAt  { get; set; }
+    [JsonPropertyName("reportCount")]          public int ReportCount          { get; set; }
+    [JsonPropertyName("dispatchUnits")]        public List<string> DispatchUnits { get; set; } = new();
+    [JsonPropertyName("adminDispatchUnits")]   public List<string> AdminDispatchUnits { get; set; } = new();
+    [JsonPropertyName("effectiveDispatchUnits")] public List<string> EffectiveDispatchUnits { get; set; } = new();
+    [JsonPropertyName("priority")]             public int Priority             { get; set; }
+    [JsonPropertyName("status")]               public string Status            { get; set; } = "open";
+    [JsonPropertyName("acceptedAt")]           public DateTime? AcceptedAt    { get; set; }
+    [JsonPropertyName("acceptedBy")]           public string? AcceptedBy      { get; set; }
+    [JsonPropertyName("resolvedAt")]           public DateTime? ResolvedAt    { get; set; }
+    [JsonPropertyName("resolvedBy")]           public string? ResolvedBy      { get; set; }
+    [JsonPropertyName("adminNotes")]           public string AdminNotes        { get; set; } = string.Empty;
+    [JsonPropertyName("dispatchTriggeredAt")]  public DateTime? DispatchTriggeredAt { get; set; }
+    [JsonPropertyName("description")]          public string Description       { get; set; } = string.Empty;
+    [JsonPropertyName("analysisSummary")]      public string AnalysisSummary   { get; set; } = string.Empty;
 
-    public string SeverityColor => SeverityLevel switch
+    // ── Computed display helpers ──────────────────────────────────────────────
+
+    public string DisplaySeverity => !string.IsNullOrEmpty(AdminSeverity) ? AdminSeverity : SeverityLevel;
+
+    public string SeverityColor => DisplaySeverity switch
     {
         "critical" => "#ff2d55",
         "high"     => "#ff9500",
@@ -92,7 +107,7 @@ public class AggregatedIncidentSummary
         _          => "#636366"
     };
 
-    public string SeverityColor20 => SeverityLevel switch
+    public string SeverityColor20 => DisplaySeverity switch
     {
         "critical" => "rgba(255,45,85,0.12)",
         "high"     => "rgba(255,149,0,0.12)",
@@ -110,9 +125,25 @@ public class AggregatedIncidentSummary
         "hazard"   => "⚠️",
         _          => "❓"
     };
+
+    public string StatusColor => Status switch
+    {
+        "open"     => "#ff9500",
+        "accepted" => "#0a84ff",
+        "resolved" => "#30d158",
+        _          => "#636366"
+    };
+
+    public string StatusIcon => Status switch
+    {
+        "open"     => "🟠",
+        "accepted" => "🔵",
+        "resolved" => "🟢",
+        _          => "⚪"
+    };
 }
 
-// ── Individual Report ─────────────────────────────────────────────────────────
+// ── Individual Report (drawer) ────────────────────────────────────────────────
 
 public class IndividualReport
 {
@@ -126,20 +157,25 @@ public class IndividualReport
     [JsonPropertyName("inputType")]   public string InputType   { get; set; } = string.Empty;
 }
 
-// ── Aggregated Incident Detail ────────────────────────────────────────────────
-
 public class AggregatedIncidentDetail
 {
-    [JsonPropertyName("incidentKey")]     public string IncidentKey   { get; set; } = string.Empty;
-    [JsonPropertyName("incidentType")]    public string IncidentType  { get; set; } = string.Empty;
-    [JsonPropertyName("severityLevel")]   public string SeverityLevel { get; set; } = string.Empty;
-    [JsonPropertyName("location")]        public string Location      { get; set; } = string.Empty;
-    [JsonPropertyName("reportCount")]     public int ReportCount      { get; set; }
-    [JsonPropertyName("dispatchUnits")]   public List<string> DispatchUnits { get; set; } = new();
-    [JsonPropertyName("priority")]        public int Priority         { get; set; }
-    [JsonPropertyName("firstReportedAt")] public DateTime FirstReportedAt { get; set; }
-    [JsonPropertyName("lastReportedAt")]  public DateTime LastReportedAt  { get; set; }
-    [JsonPropertyName("reports")]         public List<IndividualReport> Reports { get; set; } = new();
+    [JsonPropertyName("incidentKey")]          public string IncidentKey   { get; set; } = string.Empty;
+    [JsonPropertyName("incidentType")]         public string IncidentType  { get; set; } = string.Empty;
+    [JsonPropertyName("severityLevel")]        public string SeverityLevel { get; set; } = string.Empty;
+    [JsonPropertyName("adminSeverity")]        public string? AdminSeverity { get; set; }
+    [JsonPropertyName("location")]             public string Location      { get; set; } = string.Empty;
+    [JsonPropertyName("reportCount")]          public int ReportCount      { get; set; }
+    [JsonPropertyName("dispatchUnits")]        public List<string> DispatchUnits { get; set; } = new();
+    [JsonPropertyName("adminDispatchUnits")]   public List<string> AdminDispatchUnits { get; set; } = new();
+    [JsonPropertyName("effectiveDispatchUnits")] public List<string> EffectiveDispatchUnits { get; set; } = new();
+    [JsonPropertyName("priority")]             public int Priority         { get; set; }
+    [JsonPropertyName("status")]               public string Status        { get; set; } = "open";
+    [JsonPropertyName("adminNotes")]           public string AdminNotes    { get; set; } = string.Empty;
+    [JsonPropertyName("acceptedBy")]           public string? AcceptedBy  { get; set; }
+    [JsonPropertyName("resolvedBy")]           public string? ResolvedBy  { get; set; }
+    [JsonPropertyName("firstReportedAt")]      public DateTime FirstReportedAt { get; set; }
+    [JsonPropertyName("lastReportedAt")]       public DateTime LastReportedAt  { get; set; }
+    [JsonPropertyName("reports")]              public List<IndividualReport> Reports { get; set; } = new();
 
     public string IncidentIcon => IncidentType switch
     {
@@ -150,4 +186,25 @@ public class AggregatedIncidentDetail
         "hazard"   => "⚠️",
         _          => "❓"
     };
+}
+
+// ── Admin Action DTOs ─────────────────────────────────────────────────────────
+
+public class UpdateIncidentRequest
+{
+    public string? AdminSeverity          { get; set; }
+    public List<string>? AdminDispatchUnits { get; set; }
+    public string? AdminNotes             { get; set; }
+}
+
+public class AcceptIncidentRequest
+{
+    public string AdminName { get; set; } = string.Empty;
+    public string? Notes    { get; set; }
+}
+
+public class ResolveIncidentRequest
+{
+    public string AdminName { get; set; } = string.Empty;
+    public string? Notes    { get; set; }
 }

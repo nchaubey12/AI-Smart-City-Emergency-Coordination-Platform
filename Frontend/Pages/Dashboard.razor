@@ -24,7 +24,7 @@ else if (!Auth.IsAdmin)
 else
 {
 <div class="dashboard">
-    <!-- ── Sidebar ─────────────────────────────────────────────────────────── -->
+    <!-- ── Sidebar ────────────────────────────────────────────────────── -->
     <aside class="sidebar">
         <div class="brand">
             <div class="brand-icon">🚨</div>
@@ -49,48 +49,50 @@ else
         </div>
     </aside>
 
-    <!-- ── Main ───────────────────────────────────────────────────────────── -->
+    <!-- ── Main ──────────────────────────────────────────────────────── -->
     <main class="main-area">
         <div class="topbar">
             <div>
                 <h2 class="page-title">Live Incident Dashboard</h2>
-                <p class="page-sub">All incidents aggregated from citizen reports</p>
+                <p class="page-sub">Human-in-loop review · Accept to trigger dispatch · Resolve when done</p>
             </div>
             <div class="topbar-actions">
                 <button class="refresh-btn" @onclick="LoadIncidents" disabled="@IsLoading">
                     @(IsLoading ? "⏳" : "🔄") Refresh
                 </button>
-                <button class="btn-primary" @onclick='() => Nav.NavigateTo("/report")'>
-                    + New Report
-                </button>
+                <button class="btn-primary" @onclick='() => Nav.NavigateTo("/report")'>+ New Report</button>
             </div>
         </div>
 
-        <!-- ── KPI Cards ───────────────────────────────────────────────────── -->
+        <!-- ── KPI Cards ──────────────────────────────────────────────── -->
         <div class="kpi-grid">
             <div class="kpi-card" style="--accent:#ff2d55">
-                <div class="kpi-val">@Incidents.Count(i => i.SeverityLevel == "critical")</div>
+                <div class="kpi-val">@Incidents.Count(i => i.DisplaySeverity == "critical")</div>
                 <div class="kpi-lbl">Critical</div>
             </div>
             <div class="kpi-card" style="--accent:#ff9500">
-                <div class="kpi-val">@Incidents.Count(i => i.SeverityLevel == "high")</div>
+                <div class="kpi-val">@Incidents.Count(i => i.DisplaySeverity == "high")</div>
                 <div class="kpi-lbl">High</div>
             </div>
-            <div class="kpi-card" style="--accent:#ffd60a">
-                <div class="kpi-val">@Incidents.Count(i => i.SeverityLevel == "medium")</div>
-                <div class="kpi-lbl">Medium</div>
-            </div>
-            <div class="kpi-card" style="--accent:#30d158">
-                <div class="kpi-val">@Incidents.Count(i => i.SeverityLevel == "low")</div>
-                <div class="kpi-lbl">Low</div>
+            <div class="kpi-card" style="--accent:#ff9500">
+                <div class="kpi-val">@Incidents.Count(i => i.Status == "open")</div>
+                <div class="kpi-lbl">Open</div>
             </div>
             <div class="kpi-card" style="--accent:#0a84ff">
+                <div class="kpi-val">@Incidents.Count(i => i.Status == "accepted")</div>
+                <div class="kpi-lbl">Dispatched</div>
+            </div>
+            <div class="kpi-card" style="--accent:#30d158">
+                <div class="kpi-val">@Incidents.Count(i => i.Status == "resolved")</div>
+                <div class="kpi-lbl">Resolved</div>
+            </div>
+            <div class="kpi-card" style="--accent:#636366">
                 <div class="kpi-val">@Incidents.Sum(i => i.ReportCount)</div>
                 <div class="kpi-lbl">Total Reports</div>
             </div>
         </div>
 
-        <!-- ── Incidents Table ─────────────────────────────────────────────── -->
+        <!-- ── Incidents Table ────────────────────────────────────────── -->
         <div class="table-card">
             <div class="table-header">
                 <h3>All Incidents</h3>
@@ -114,36 +116,136 @@ else
                     <table class="inc-table">
                         <thead>
                             <tr>
+                                <th>Status</th>
                                 <th>Type</th>
                                 <th>Severity</th>
                                 <th>Location</th>
-                                <th>Description (first report)</th>
-                                <th>Dispatch</th>
-                                <th>Priority</th>
+                                <th>Incident Analysis (AI)</th>
+                                <th>Dispatch Units</th>
                                 <th>Last Reported</th>
-                                <th>Report Count</th>
+                                <th>Reports</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach (var inc in Incidents.OrderByDescending(i => i.LastReportedAt))
                             {
-                                <tr class="inc-row">
-                                    <td><span class="type-badge">@inc.IncidentIcon @inc.IncidentType</span></td>
+                                var fullText    = !string.IsNullOrEmpty(inc.AnalysisSummary) ? inc.AnalysisSummary : inc.Description;
+                                var shortText   = TruncateWords(fullText, 20);
+                                var isTruncated = fullText.Length > shortText.Length;
+
+                                <tr class="inc-row @(inc.Status == "resolved" ? "row-resolved" : "")">
+                                    <!-- Status -->
                                     <td>
-                                        <span class="sev-badge" style="background:@inc.SeverityColor20; color:@inc.SeverityColor; border:1px solid @inc.SeverityColor">
-                                            @inc.SeverityLevel.ToUpper()
+                                        <span class="status-pill" style="background:@(inc.StatusColor)22; color:@inc.StatusColor; border:1px solid @inc.StatusColor">
+                                            @inc.StatusIcon @inc.Status.ToUpper()
                                         </span>
                                     </td>
-                                    <td class="loc-cell">📍 @inc.Location</td>
-                                    <td class="desc-cell">—</td>
-                                    <td class="dispatch-cell">@string.Join(", ", inc.DispatchUnits)</td>
-                                    <td><span class="priority-tag">P@(inc.Priority)</span></td>
-                                    <td class="time-cell">@inc.LastReportedAt.ToString("MMM d, HH:mm")</td>
+
+                                    <!-- Type -->
+                                    <td><span class="type-badge">@inc.IncidentIcon @inc.IncidentType</span></td>
+
+                                    <!-- Severity with dropdown -->
                                     <td>
-                                        <button class="count-btn"
-                                                @onclick="() => OpenDetail(inc.IncidentKey)">
+                                        <div class="sev-wrap">
+                                            <span class="sev-badge"
+                                                  style="background:@inc.SeverityColor20; color:@inc.SeverityColor; border:1px solid @inc.SeverityColor">
+                                                @inc.DisplaySeverity.ToUpper()
+                                            </span>
+                                            @if (inc.AdminSeverity != null)
+                                            {
+                                                <span class="sev-hint" title="AI suggested: @inc.SeverityLevel">✏️ overridden</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="sev-hint">🤖 AI</span>
+                                            }
+                                            @if (inc.Status != "resolved")
+                                            {
+                                                <select class="sev-select"
+                                                        value="@(inc.AdminSeverity ?? inc.SeverityLevel)"
+                                                        @onchange="e => OnSeverityChange(inc, e.Value?.ToString())">
+                                                    <option value="">-- change --</option>
+                                                    <option value="low">Low</option>
+                                                    <option value="medium">Medium</option>
+                                                    <option value="high">High</option>
+                                                    <option value="critical">Critical</option>
+                                                </select>
+                                            }
+                                        </div>
+                                    </td>
+
+                                    <!-- Location -->
+                                    <td class="loc-cell">📍 @inc.Location</td>
+
+                                    <!-- Analysis -->
+                                    <td class="desc-cell">
+                                        @if (string.IsNullOrEmpty(fullText))
+                                        {
+                                            <span class="no-desc">—</span>
+                                        }
+                                        else if (isTruncated)
+                                        {
+                                            <div class="tooltip-wrap">
+                                                <span class="desc-text">@shortText<span class="ellipsis">…</span></span>
+                                                <div class="tooltip-box">@fullText</div>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <span class="desc-text">@fullText</span>
+                                        }
+                                    </td>
+
+                                    <!-- Dispatch Units -->
+                                    <td class="dispatch-cell">
+                                        @foreach (var unit in inc.EffectiveDispatchUnits)
+                                        {
+                                            <span class="unit-tag">@DispatchIcon(unit) @unit</span>
+                                        }
+                                        @if (inc.Status != "resolved")
+                                        {
+                                            <button class="add-unit-btn"
+                                                    @onclick="() => OpenAddUnit(inc)">+ Add</button>
+                                        }
+                                    </td>
+
+                                    <!-- Priority -->
+                                    @* <td><span class="priority-tag p@(inc.Priority)">P@(inc.Priority)</span></td> *@
+
+                                    <!-- Time -->
+                                    <td class="time-cell">@inc.LastReportedAt.ToString("MMM d, HH:mm")</td>
+
+                                    <!-- Report count -->
+                                    <td>
+                                        <button class="count-btn" @onclick="() => OpenDetail(inc.IncidentKey)">
                                             @inc.ReportCount report@(inc.ReportCount != 1 ? "s" : "")
                                         </button>
+                                    </td>
+
+                                    <!-- Actions -->
+                                    <td class="action-cell">
+                                        @if (inc.Status == "open")
+                                        {
+                                            <button class="action-btn accept-btn"
+                                                    @onclick="() => ConfirmAccept(inc)">
+                                                Confirm
+                                            </button>
+                                        }
+                                        else if (inc.Status == "accepted")
+                                        {
+                                            <div class="dispatched-info">
+                                                <span class="dispatched-label">🚀 Dispatched</span>
+                                                @if (inc.DispatchTriggeredAt.HasValue)
+                                                {
+                                                    <span class="dispatched-time">@inc.DispatchTriggeredAt.Value.ToString("HH:mm")</span>
+                                                }
+                                            </div>
+                                        }
+                                        else if (inc.Status == "resolved")
+                                        {
+                                            <span class="resolved-label">✅ Resolved by @inc.ResolvedBy</span>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -155,7 +257,7 @@ else
     </main>
 </div>
 
-<!-- ── Detail Drawer ──────────────────────────────────────────────────────── -->
+<!-- ── Detail Drawer ─────────────────────────────────────────────────────── -->
 @if (DetailOpen && Detail != null)
 {
     <div class="drawer-backdrop" @onclick="CloseDetail">
@@ -167,6 +269,30 @@ else
                 </div>
                 <button class="close-x" @onclick="CloseDetail">✕</button>
             </div>
+
+            <!-- Resolve button in drawer -->
+            @if (Detail.Status == "accepted")
+            {
+                <div class="resolve-section">
+                    <p class="resolve-desc">Once all emergency response steps are complete and the incident is under control, mark it as resolved.</p>
+                    <textarea class="resolve-notes" rows="2"
+                              placeholder="Optional resolution notes…"
+                              @bind="ResolveNotes"></textarea>
+                    <button class="resolve-btn" @onclick="() => DoResolve(Detail.IncidentKey)">
+                        🏁 Mark Incident as Resolved
+                    </button>
+                </div>
+            }
+            else if (Detail.Status == "resolved")
+            {
+                <div class="resolved-banner">
+                    ✅ Resolved by <strong>@Detail.ResolvedBy</strong>
+                    @if (!string.IsNullOrEmpty(Detail.AdminNotes))
+                    {
+                        <p class="resolved-notes">@Detail.AdminNotes</p>
+                    }
+                </div>
+            }
 
             <div class="report-list">
                 @foreach (var r in Detail.Reports.OrderByDescending(r => r.SubmittedAt))
@@ -184,7 +310,7 @@ else
                         </div>
                         <div class="rc-body">
                             <span class="rc-type-tag">@r.InputType</span>
-                            <p class="rc-desc">@(string.IsNullOrEmpty(r.Description) ? "(No text description)" : r.Description)</p>
+                            <p class="rc-desc">@(string.IsNullOrEmpty(r.Description) ? "(No description)" : r.Description)</p>
                             @if (!string.IsNullOrEmpty(r.Location))
                             {
                                 <p class="rc-loc">📍 @r.Location</p>
@@ -197,12 +323,101 @@ else
         </div>
     </div>
 }
+
+<!-- ── Accept Confirm Modal ──────────────────────────────────────────────── -->
+@if (AcceptTarget != null)
+{
+    <div class="modal-backdrop" @onclick="() => AcceptTarget = null">
+        <div class="modal" @onclick:stopPropagation="true">
+            <h3>Confirm &amp; Dispatch</h3>
+            <p>You are about to accept this incident and trigger dispatch for:</p>
+            <div class="modal-units">
+                @foreach (var unit in AcceptTarget.EffectiveDispatchUnits)
+                {
+                    <span class="unit-tag large">@DispatchIcon(unit) @unit</span>
+                }
+            </div>
+            <div class="modal-sev">
+                Severity: <span class="sev-badge inline"
+                    style="background:@AcceptTarget.SeverityColor20; color:@AcceptTarget.SeverityColor; border:1px solid @AcceptTarget.SeverityColor">
+                    @AcceptTarget.DisplaySeverity.ToUpper()
+                </span>
+                @if (AcceptTarget.AdminSeverity != null)
+                {
+                    <span class="override-note">(AI suggested: @AcceptTarget.SeverityLevel)</span>
+                }
+            </div>
+            <textarea class="modal-notes" rows="2"
+                      placeholder="Optional notes for dispatch teams…"
+                      @bind="AcceptNotes"></textarea>
+            @if (ActionMsg != null)
+            {
+                <div class="action-msg @(ActionSuccess ? "success" : "error")">@ActionMsg</div>
+            }
+            <div class="modal-btns">
+                <button class="btn-cancel" @onclick="() => AcceptTarget = null">Cancel</button>
+                <button class="btn-confirm" @onclick="DoAccept" disabled="@ActionLoading">
+                    @if (ActionLoading) { <span class="spinner"></span> }
+                    Confirm Dispatch
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ── Add Unit Modal ────────────────────────────────────────────────────── -->
+@if (AddUnitTarget != null)
+{
+    <div class="modal-backdrop" @onclick="() => AddUnitTarget = null">
+        <div class="modal" @onclick:stopPropagation="true">
+            <h3>🚒 Manage Dispatch Units</h3>
+            <p>Current units (AI + admin):</p>
+            <div class="unit-edit-list">
+                @foreach (var unit in AddUnitTarget.EffectiveDispatchUnits)
+                {
+                    <span class="unit-tag large">@DispatchIcon(unit) @unit</span>
+                }
+            </div>
+            <p style="margin-top:1rem; font-size:0.85rem; color:#374151; font-weight:600;">Add a unit:</p>
+            <div class="unit-presets">
+                @foreach (var preset in new[] { "police","traffic_police","ambulance","fire","tow_truck","utility","rescue","coast_guard","bomb_squad","hazmat" })
+                {
+                    var alreadyAdded = AddUnitTarget.EffectiveDispatchUnits
+                        .Contains(preset, StringComparer.OrdinalIgnoreCase);
+                    <button class="preset-btn @(alreadyAdded ? "added" : "")"
+                            disabled="@alreadyAdded"
+                            @onclick="() => AddPresetUnit(preset)">
+                        @DispatchIcon(preset) @preset
+                    </button>
+                }
+            </div>
+            <div class="custom-unit-row">
+                <input type="text" placeholder="Or type custom unit name…"
+                       @bind="CustomUnitInput" @bind:event="oninput"
+                       @onkeydown="OnCustomUnitKey" />
+                <button class="btn-add-custom" @onclick="AddCustomUnit"
+                        disabled="@string.IsNullOrWhiteSpace(CustomUnitInput)">Add</button>
+            </div>
+            @if (ActionMsg != null)
+            {
+                <div class="action-msg @(ActionSuccess ? "success" : "error")">@ActionMsg</div>
+            }
+            <div class="modal-btns">
+                <button class="btn-cancel" @onclick="() => AddUnitTarget = null">Close</button>
+            </div>
+        </div>
+    </div>
+}
 }
 
 @code {
     List<AggregatedIncidentSummary> Incidents = new();
     AggregatedIncidentDetail? Detail;
-    bool IsLoading, DetailOpen;
+    AggregatedIncidentSummary? AcceptTarget;
+    AggregatedIncidentSummary? AddUnitTarget;
+    bool IsLoading, DetailOpen, ActionLoading, ActionSuccess;
+    string? ActionMsg, AcceptNotes, ResolveNotes;
+    string CustomUnitInput = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -224,18 +439,137 @@ else
         DetailOpen = Detail != null;
     }
 
-    void CloseDetail() { DetailOpen = false; Detail = null; }
-
+    void CloseDetail() { DetailOpen = false; Detail = null; ResolveNotes = null; }
     void Logout() { Auth.Logout(); Nav.NavigateTo("/login"); }
-}
 
-@* Extension for 20% opacity color in Razor *@
-@functions {
-    // Inline helper — returns a light background for severity
+    // ── Severity override ─────────────────────────────────────────────────────
+
+    async Task OnSeverityChange(AggregatedIncidentSummary inc, string? newVal)
+    {
+        if (string.IsNullOrEmpty(newVal)) return;
+        var (ok, _) = await ReportApi.UpdateIncidentAsync(inc.IncidentKey, "Admin",
+            new UpdateIncidentRequest { AdminSeverity = newVal });
+        if (ok) await LoadIncidents();
+    }
+
+    // ── Accept & dispatch ─────────────────────────────────────────────────────
+
+    void ConfirmAccept(AggregatedIncidentSummary inc)
+    {
+        AcceptTarget = inc; AcceptNotes = null; ActionMsg = null;
+    }
+
+    async Task DoAccept()
+    {
+        if (AcceptTarget == null) return;
+        ActionLoading = true; ActionMsg = null;
+        var (ok, msg) = await ReportApi.AcceptIncidentAsync(AcceptTarget.IncidentKey, "Admin",
+            new AcceptIncidentRequest
+            {
+                AdminName = Auth.CurrentUser!.Name,
+                Notes = AcceptNotes
+            });
+        ActionLoading = false; ActionMsg = msg; ActionSuccess = ok;
+        if (ok)
+        {
+            await Task.Delay(1000);
+            AcceptTarget = null;
+            await LoadIncidents();
+        }
+    }
+
+    // ── Resolve ───────────────────────────────────────────────────────────────
+
+    async Task DoResolve(string key)
+    {
+        var (ok, msg) = await ReportApi.ResolveIncidentAsync(key, "Admin",
+            new ResolveIncidentRequest
+            {
+                AdminName = Auth.CurrentUser!.Name,
+                Notes = ResolveNotes
+            });
+        ActionMsg = msg; ActionSuccess = ok;
+        if (ok)
+        {
+            await Task.Delay(800);
+            CloseDetail();
+            await LoadIncidents();
+        }
+    }
+
+    // ── Add unit ──────────────────────────────────────────────────────────────
+
+    void OpenAddUnit(AggregatedIncidentSummary inc)
+    {
+        AddUnitTarget = inc; CustomUnitInput = string.Empty; ActionMsg = null;
+    }
+
+    async Task AddPresetUnit(string unit)
+    {
+        if (AddUnitTarget == null) return;
+        var current = AddUnitTarget.AdminDispatchUnits.ToList();
+        if (!current.Contains(unit, StringComparer.OrdinalIgnoreCase))
+        {
+            current.Add(unit);
+            await SaveUnits(current);
+        }
+    }
+
+    async Task AddCustomUnit()
+    {
+        if (AddUnitTarget == null || string.IsNullOrWhiteSpace(CustomUnitInput)) return;
+        var unit = CustomUnitInput.Trim().ToLower().Replace(" ", "_");
+        var current = AddUnitTarget.AdminDispatchUnits.ToList();
+        if (!current.Contains(unit, StringComparer.OrdinalIgnoreCase))
+        {
+            current.Add(unit);
+            await SaveUnits(current);
+        }
+        CustomUnitInput = string.Empty;
+    }
+
+    async Task OnCustomUnitKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await AddCustomUnit();
+    }
+
+    async Task SaveUnits(List<string> units)
+    {
+        if (AddUnitTarget == null) return;
+        var (ok, msg) = await ReportApi.UpdateIncidentAsync(AddUnitTarget.IncidentKey, "Admin",
+            new UpdateIncidentRequest { AdminDispatchUnits = units });
+        ActionMsg = ok ? "Unit added." : msg; ActionSuccess = ok;
+        if (ok) await LoadIncidents();
+        // Refresh the target reference
+        AddUnitTarget = Incidents.FirstOrDefault(i => i.IncidentKey == AddUnitTarget?.IncidentKey);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    static string TruncateWords(string text, int maxWords)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return words.Length <= maxWords ? text : string.Join(" ", words.Take(maxWords));
+    }
+
+    static string DispatchIcon(string unit) => unit.ToLower() switch
+    {
+        "fire"          => "🔥",
+        "ambulance"     => "🚑",
+        "police"        => "🚔",
+        "traffic_police"=> "🚦",
+        "tow_truck"     => "🚛",
+        "utility"       => "⚡",
+        "rescue"        => "🛟",
+        "coast_guard"   => "⛵",
+        "bomb_squad"    => "💣",
+        "hazmat"        => "☢️",
+        _               => "🆘"
+    };
 }
 
 <style>
-    /* Layout */
     .dashboard { display:flex; min-height:100vh; background:#f4f4f8; font-family:-apple-system,sans-serif; }
 
     /* Sidebar */
@@ -253,13 +587,11 @@ else
     .user-chip { display:flex; align-items:center; gap:0.6rem;
         padding:0.6rem; background:rgba(255,255,255,0.06); border-radius:10px; }
     .avatar { width:32px; height:32px; border-radius:50%; background:#0a84ff;
-        display:flex; align-items:center; justify-content:center;
-        font-weight:800; font-size:0.9rem; flex-shrink:0; }
+        display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.9rem; flex-shrink:0; }
     .uname { font-size:0.82rem; font-weight:700; color:white; }
     .urole { font-size:0.68rem; color:#6b7280; }
     .logout-btn { background:rgba(255,45,85,0.12); border:1px solid rgba(255,45,85,0.25);
-        color:#ff6b8a; border-radius:8px; padding:0.45rem 0.75rem;
-        font-size:0.82rem; cursor:pointer; text-align:left; }
+        color:#ff6b8a; border-radius:8px; padding:0.45rem 0.75rem; font-size:0.82rem; cursor:pointer; text-align:left; }
 
     /* Main */
     .main-area { flex:1; overflow-y:auto; }
@@ -268,68 +600,126 @@ else
     .page-title { font-size:1.3rem; font-weight:900; margin:0; color:#111827; }
     .page-sub { color:#9ca3af; font-size:0.82rem; margin:0.2rem 0 0; }
     .topbar-actions { display:flex; gap:0.75rem; align-items:center; }
-    .refresh-btn { background:#f3f4f6; border:1px solid #e5e7eb; border-radius:9px;
-        padding:0.5rem 1rem; font-size:0.85rem; cursor:pointer; }
-    .btn-primary { background:#0a84ff; color:white; border:none; border-radius:9px;
-        padding:0.55rem 1.1rem; font-weight:700; cursor:pointer; font-size:0.88rem; }
+    .refresh-btn { background:#f3f4f6; border:1px solid #e5e7eb; border-radius:9px; padding:0.5rem 1rem; font-size:0.85rem; cursor:pointer; }
+    .btn-primary { background:#0a84ff; color:white; border:none; border-radius:9px; padding:0.55rem 1.1rem; font-weight:700; cursor:pointer; font-size:0.88rem; }
 
     /* KPIs */
     .kpi-grid { display:flex; gap:1rem; padding:1.5rem 2rem 0; flex-wrap:wrap; }
-    .kpi-card { flex:1; min-width:100px; background:white; border-radius:14px;
-        padding:1.1rem; text-align:center; border-top:3px solid var(--accent); }
+    .kpi-card { flex:1; min-width:90px; background:white; border-radius:14px; padding:1.1rem;
+        text-align:center; border-top:3px solid var(--accent); }
     .kpi-val { font-size:2rem; font-weight:900; color:#111827; }
     .kpi-lbl { font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em; color:#9ca3af; }
 
     /* Table */
-    .table-card { background:white; border-radius:16px; margin:1.5rem 2rem;
-        overflow:hidden; border:1px solid #e5e7eb; }
+    .table-card { background:white; border-radius:16px; margin:1.5rem 2rem; overflow:hidden; border:1px solid #e5e7eb; }
     .table-header { display:flex; justify-content:space-between; align-items:center;
         padding:1rem 1.5rem; border-bottom:1px solid #f3f4f6; }
     .table-header h3 { margin:0; font-size:0.97rem; font-weight:700; }
-    .live-dot { background:#ff2d55; color:white; font-size:0.7rem;
-        font-weight:700; padding:0.2rem 0.6rem; border-radius:50px; }
+    .live-dot { background:#ff2d55; color:white; font-size:0.7rem; font-weight:700; padding:0.2rem 0.6rem; border-radius:50px; }
     .table-wrap { overflow-x:auto; }
-    .inc-table { width:100%; border-collapse:collapse; font-size:0.87rem; }
-    .inc-table th { font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em;
-        color:#9ca3af; text-align:left; padding:0.65rem 1.2rem;
-        background:#f9fafb; border-bottom:1px solid #e5e7eb; white-space:nowrap; }
-    .inc-row td { padding:0.8rem 1.2rem; border-bottom:1px solid #f3f4f6; vertical-align:middle; }
+    .inc-table { width:100%; border-collapse:collapse; font-size:0.85rem; }
+    .inc-table th { font-size:0.7rem; text-transform:uppercase; letter-spacing:0.06em; color:#9ca3af;
+        text-align:left; padding:0.65rem 1rem; background:#f9fafb; border-bottom:1px solid #e5e7eb; white-space:nowrap; }
+    .inc-row td { padding:0.75rem 1rem; border-bottom:1px solid #f3f4f6; vertical-align:middle; }
     .inc-row:hover { background:#f9fafb; }
-    .type-badge { font-weight:600; }
-    .sev-badge { font-size:0.72rem; font-weight:800; padding:0.25rem 0.6rem;
+    .row-resolved { opacity:0.6; }
+
+    /* Status */
+    .status-pill { font-size:0.7rem; font-weight:800; padding:0.25rem 0.6rem;
         border-radius:50px; white-space:nowrap; }
-    .loc-cell { color:#374151; max-width:160px; }
-    .desc-cell { color:#6b7280; max-width:200px; overflow:hidden;
-        text-overflow:ellipsis; white-space:nowrap; }
-    .dispatch-cell { color:#374151; font-size:0.82rem; }
-    .priority-tag { background:#111827; color:white; font-weight:800; font-size:0.78rem;
-        padding:0.2rem 0.5rem; border-radius:6px; }
+
+    /* Type */
+    .type-badge { font-weight:600; white-space:nowrap; }
+
+    /* Severity */
+    .sev-wrap { display:flex; flex-direction:column; gap:0.25rem; min-width:110px; }
+    .sev-badge { font-size:0.72rem; font-weight:800; padding:0.25rem 0.6rem;
+        border-radius:50px; white-space:nowrap; display:inline-block; }
+    .sev-badge.inline { display:inline; }
+    .sev-hint { font-size:0.68rem; color:#9ca3af; }
+    .sev-select { font-size:0.75rem; border:1px solid #e5e7eb; border-radius:6px;
+        padding:0.2rem 0.4rem; background:white; cursor:pointer; color:#374151;
+        width:100%; margin-top:0.15rem; }
+
+    /* Description tooltip */
+    .desc-cell { max-width:200px; }
+    .no-desc { color:#d1d5db; }
+    .desc-text { color:#374151; font-size:0.83rem; line-height:1.4; }
+    .ellipsis { color:#9ca3af; }
+    .tooltip-wrap { position:relative; display:inline-block; cursor:help; }
+    .tooltip-box { display:none; position:absolute; top:calc(100% + 6px); left:0;
+        z-index:50; background:#1f2937; color:#f9fafb; font-size:0.82rem; line-height:1.6;
+        padding:0.75rem 1rem; border-radius:10px; width:300px;
+        box-shadow:0 8px 24px rgba(0,0,0,0.25); white-space:normal; pointer-events:none; }
+    .tooltip-wrap:hover .tooltip-box { display:block; }
+
+    /* Dispatch */
+    .dispatch-cell { max-width:220px; }
+    .unit-tag { display:inline-block; background:#f3f4f6; border:1px solid #e5e7eb;
+        border-radius:6px; padding:0.15rem 0.45rem; font-size:0.75rem; font-weight:600;
+        color:#374151; margin:0.1rem; white-space:nowrap; }
+    .unit-tag.large { padding:0.3rem 0.7rem; font-size:0.85rem; }
+    .add-unit-btn { background:none; border:1px dashed #0a84ff; color:#0a84ff;
+        border-radius:6px; padding:0.15rem 0.45rem; font-size:0.72rem; cursor:pointer;
+        margin:0.1rem; white-space:nowrap; }
+    .add-unit-btn:hover { background:#eff6ff; }
+
+    /* Priority */
+    .priority-tag { color:white; font-weight:800; font-size:0.78rem; padding:0.2rem 0.5rem; border-radius:6px; }
+    .priority-tag.p1 { background:#ff2d55; }
+    .priority-tag.p2 { background:#ff9500; }
+    .priority-tag.p3 { background:#ffd60a; color:#111; }
+    .priority-tag.p4 { background:#30d158; }
+
+    .loc-cell { color:#374151; max-width:140px; font-size:0.82rem; }
     .time-cell { color:#9ca3af; white-space:nowrap; font-size:0.82rem; }
     .count-btn { background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8;
-        border-radius:8px; padding:0.3rem 0.75rem; font-size:0.82rem;
-        font-weight:700; cursor:pointer; white-space:nowrap; }
+        border-radius:8px; padding:0.3rem 0.75rem; font-size:0.82rem; font-weight:700; cursor:pointer; white-space:nowrap; }
     .count-btn:hover { background:#dbeafe; }
 
+    /* Action column */
+    .action-cell { white-space:nowrap; }
+    .action-btn { border:none; border-radius:8px; padding:0.45rem 0.9rem;
+        font-size:0.82rem; font-weight:700; cursor:pointer; white-space:nowrap; }
+    .accept-btn { background:#0a84ff; color:white; }
+    .accept-btn:hover { background:#0070d8; }
+    .dispatched-info { display:flex; flex-direction:column; gap:0.1rem; }
+    .dispatched-label { color:#0a84ff; font-weight:700; font-size:0.82rem; }
+    .dispatched-time { color:#9ca3af; font-size:0.75rem; }
+    .resolved-label { color:#30d158; font-weight:700; font-size:0.8rem; }
+
+    /* Loading/empty */
     .loading-state, .empty-state { text-align:center; padding:3rem; color:#9ca3af; }
     .empty-state p { margin:0.5rem 0; }
 
     /* Drawer */
-    .drawer-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.5);
-        z-index:100; display:flex; justify-content:flex-end; }
+    .drawer-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:100; display:flex; justify-content:flex-end; }
     .drawer { width:100%; max-width:560px; background:white; height:100%;
         overflow-y:auto; padding:1.5rem; display:flex; flex-direction:column; gap:1rem; }
     .drawer-header { display:flex; justify-content:space-between; align-items:flex-start; }
     .drawer-header h3 { margin:0; font-size:1.05rem; font-weight:800; }
     .drawer-sub { color:#6b7280; font-size:0.82rem; margin:0.2rem 0 0; }
-    .close-x { background:#f3f4f6; border:none; border-radius:50%;
-        width:32px; height:32px; cursor:pointer; font-size:1rem; flex-shrink:0; }
+    .close-x { background:#f3f4f6; border:none; border-radius:50%; width:32px; height:32px; cursor:pointer; font-size:1rem; flex-shrink:0; }
+
+    /* Resolve section */
+    .resolve-section { background:#f0fdf4; border:1.5px solid #86efac; border-radius:12px; padding:1.2rem; }
+    .resolve-desc { color:#166534; font-size:0.85rem; margin:0 0 0.75rem; }
+    .resolve-notes { width:100%; border:1px solid #86efac; border-radius:8px; padding:0.6rem;
+        font-size:0.88rem; background:white; box-sizing:border-box; margin-bottom:0.75rem; }
+    .resolve-btn { width:100%; background:#16a34a; color:white; border:none; border-radius:10px;
+        padding:0.75rem; font-weight:700; font-size:0.92rem; cursor:pointer; }
+    .resolve-btn:hover { background:#15803d; }
+    .resolved-banner { background:#f0fdf4; border:1px solid #86efac; border-radius:10px;
+        padding:1rem; color:#166534; font-size:0.88rem; }
+    .resolved-notes { color:#166534; font-size:0.82rem; margin:0.5rem 0 0; }
+
+    /* Reports list */
     .report-list { display:flex; flex-direction:column; gap:0.75rem; }
     .report-card { border:1px solid #e5e7eb; border-radius:12px; padding:1rem; }
     .rc-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; }
     .rc-user { display:flex; align-items:center; gap:0.6rem; }
     .rc-avatar { width:34px; height:34px; border-radius:50%; background:#0a84ff;
-        display:flex; align-items:center; justify-content:center;
-        color:white; font-weight:800; font-size:0.9rem; flex-shrink:0; }
+        display:flex; align-items:center; justify-content:center; color:white; font-weight:800; font-size:0.9rem; flex-shrink:0; }
     .rc-name { font-weight:700; font-size:0.9rem; }
     .rc-email { font-size:0.75rem; color:#6b7280; }
     .rc-time { font-size:0.75rem; color:#9ca3af; white-space:nowrap; }
@@ -339,6 +729,46 @@ else
     .rc-desc { color:#374151; font-size:0.88rem; margin:0.5rem 0 0; line-height:1.5; }
     .rc-loc { color:#6b7280; font-size:0.8rem; margin:0.3rem 0 0; }
     .rc-id { font-size:0.7rem; color:#d1d5db; font-family:monospace; margin-top:0.5rem; }
+
+    /* Modal */
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200;
+        display:flex; align-items:center; justify-content:center; padding:1rem; }
+    .modal { background:white; border-radius:20px; padding:2rem; width:100%; max-width:480px;
+        box-shadow:0 20px 60px rgba(0,0,0,0.3); }
+    .modal h3 { margin:0 0 0.75rem; font-size:1.1rem; }
+    .modal p { color:#6b7280; font-size:0.88rem; margin:0 0 0.75rem; }
+    .modal-units { display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:1rem; }
+    .modal-sev { margin-bottom:1rem; font-size:0.88rem; color:#374151; }
+    .override-note { font-size:0.78rem; color:#9ca3af; margin-left:0.5rem; }
+    .modal-notes { width:100%; border:1px solid #e5e7eb; border-radius:8px; padding:0.7rem;
+        font-size:0.88rem; box-sizing:border-box; margin-bottom:1rem; }
+    .modal-btns { display:flex; gap:0.75rem; justify-content:flex-end; }
+    .btn-cancel { background:#f3f4f6; border:none; border-radius:9px; padding:0.6rem 1.2rem;
+        font-size:0.9rem; cursor:pointer; }
+    .btn-confirm { background:#0a84ff; color:white; border:none; border-radius:9px;
+        padding:0.6rem 1.4rem; font-size:0.9rem; font-weight:700; cursor:pointer;
+        display:flex; align-items:center; gap:0.5rem; }
+    .btn-confirm:disabled { opacity:0.5; }
+    .action-msg { padding:0.6rem 0.9rem; border-radius:8px; font-size:0.85rem; font-weight:600; margin-bottom:0.75rem; }
+    .action-msg.success { background:#f0fdf4; color:#16a34a; border:1px solid #86efac; }
+    .action-msg.error   { background:#fff0f2; color:#dc2626; border:1px solid #fca5a5; }
+
+    /* Add unit modal */
+    .unit-edit-list { display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.75rem; }
+    .unit-presets { display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:1rem; }
+    .preset-btn { background:#f3f4f6; border:1px solid #e5e7eb; border-radius:7px;
+        padding:0.3rem 0.7rem; font-size:0.82rem; cursor:pointer; }
+    .preset-btn.added { background:#dcfce7; border-color:#86efac; color:#16a34a; cursor:default; }
+    .preset-btn:hover:not(.added):not(:disabled) { background:#dbeafe; border-color:#93c5fd; }
+    .custom-unit-row { display:flex; gap:0.5rem; margin-bottom:1rem; }
+    .custom-unit-row input { flex:1; border:1px solid #e5e7eb; border-radius:8px;
+        padding:0.5rem 0.75rem; font-size:0.88rem; }
+    .btn-add-custom { background:#0a84ff; color:white; border:none; border-radius:8px;
+        padding:0.5rem 1rem; font-size:0.85rem; font-weight:700; cursor:pointer; }
+    .btn-add-custom:disabled { opacity:0.4; }
+    .spinner { width:16px; height:16px; border:2.5px solid rgba(255,255,255,0.3);
+        border-top-color:white; border-radius:50%; animation:spin 0.7s linear infinite; }
+    @@keyframes spin { to { transform:rotate(360deg); } }
 
     /* Access denied */
     .no-access { text-align:center; padding:5rem 2rem; }
