@@ -130,7 +130,7 @@
 
     protected override void OnInitialized()
     {
-         if (Auth.IsLoggedIn) Nav.NavigateTo(Auth.IsAdmin ? "/dashboard" : "/report");
+        if (Auth.IsLoggedIn) Nav.NavigateTo(Auth.IsAdmin ? "/dashboard" : "/report");
         Mode = Nav.Uri.Contains("register") ? "register" : "login";
     }
 
@@ -167,7 +167,7 @@
             Email    = RegEmail,
             Phone    = RegPhone,
             Password = RegPassword,
-            Role     = "User",    
+            Role     = "User",
             AdminKey = ""
         });
         Message = result.Message; IsSuccess = result.Success; IsLoading = false;

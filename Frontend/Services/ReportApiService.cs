@@ -19,66 +19,69 @@ public class ReportApiService
             return await resp.Content.ReadFromJsonAsync<SubmitReportResponse>(_opts)
                    ?? new SubmitReportResponse { Success = false, Message = "No response." };
         }
-        catch (Exception ex)
-        {
-            return new SubmitReportResponse { Success = false, Message = $"Error: {ex.Message}" };
-        }
+        catch (Exception ex) { return new SubmitReportResponse { Success = false, Message = ex.Message }; }
     }
 
     public async Task<List<AggregatedIncidentSummary>> GetIncidentsAsync(string role)
     {
-        try
-        {
-            return await _http.GetFromJsonAsync<List<AggregatedIncidentSummary>>(
-                $"api/reports/incidents?role={role}", _opts) ?? new();
-        }
+        try { return await _http.GetFromJsonAsync<List<AggregatedIncidentSummary>>(
+            $"api/reports/incidents?role={role}", _opts) ?? new(); }
         catch { return new(); }
     }
 
     public async Task<AggregatedIncidentDetail?> GetIncidentDetailAsync(string key, string role)
     {
-        try
-        {
-            return await _http.GetFromJsonAsync<AggregatedIncidentDetail>(
-                $"api/reports/incidents/{Uri.EscapeDataString(key)}/details?role={role}", _opts);
-        }
+        try { return await _http.GetFromJsonAsync<AggregatedIncidentDetail>(
+            $"api/reports/incidents/{Uri.EscapeDataString(key)}/details?role={role}", _opts); }
         catch { return null; }
     }
 
-    public async Task<(bool Success, string Message)> UpdateIncidentAsync(
-        string key, string role, UpdateIncidentRequest req)
+    public async Task<List<OpenIncidentOption>> GetOpenIncidentsAsync(string role)
+    {
+        try { return await _http.GetFromJsonAsync<List<OpenIncidentOption>>(
+            $"api/reports/incidents/open?role={role}", _opts) ?? new(); }
+        catch { return new(); }
+    }
+
+    public async Task<(bool, string)> UpdateIncidentAsync(string key, string role, UpdateIncidentRequest req)
     {
         try
         {
             var resp = await _http.PatchAsJsonAsync(
                 $"api/reports/incidents/{Uri.EscapeDataString(key)}/update?role={role}", req);
-            return (resp.IsSuccessStatusCode, resp.IsSuccessStatusCode ? "Updated." : "Failed.");
+            return (resp.IsSuccessStatusCode, resp.IsSuccessStatusCode ? "Saved." : "Failed.");
         }
         catch (Exception ex) { return (false, ex.Message); }
     }
 
-    public async Task<(bool Success, string Message)> AcceptIncidentAsync(
-        string key, string role, AcceptIncidentRequest req)
+    public async Task<(bool, string)> AcceptIncidentAsync(string key, string role, AcceptIncidentRequest req)
     {
         try
         {
             var resp = await _http.PostAsJsonAsync(
                 $"api/reports/incidents/{Uri.EscapeDataString(key)}/accept?role={role}", req);
-            return (resp.IsSuccessStatusCode, resp.IsSuccessStatusCode
-                ? "Dispatch triggered successfully." : "Failed to accept.");
+            return (resp.IsSuccessStatusCode, resp.IsSuccessStatusCode ? "Dispatch confirmed." : "Failed.");
         }
         catch (Exception ex) { return (false, ex.Message); }
     }
 
-    public async Task<(bool Success, string Message)> ResolveIncidentAsync(
-        string key, string role, ResolveIncidentRequest req)
+    public async Task<(bool, string)> ResolveIncidentAsync(string key, string role, ResolveIncidentRequest req)
     {
         try
         {
             var resp = await _http.PostAsJsonAsync(
                 $"api/reports/incidents/{Uri.EscapeDataString(key)}/resolve?role={role}", req);
-            return (resp.IsSuccessStatusCode, resp.IsSuccessStatusCode
-                ? "Incident marked as resolved." : "Failed to resolve.");
+            return (resp.IsSuccessStatusCode, resp.IsSuccessStatusCode ? "Resolved." : "Failed.");
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    public async Task<(bool, string)> MarkDuplicateAsync(string role, MarkDuplicateRequest req)
+    {
+        try
+        {
+            var resp = await _http.PostAsJsonAsync($"api/reports/mark-duplicate?role={role}", req);
+            return (resp.IsSuccessStatusCode, resp.IsSuccessStatusCode ? "Report moved." : "Failed.");
         }
         catch (Exception ex) { return (false, ex.Message); }
     }

@@ -29,27 +29,16 @@ public class JsonStorageService
         _ = SeedAdminAsync();
     }
 
-    // ── Password ──────────────────────────────────────────────────────────────
-
     public static string HashPassword(string password)
-    {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(password + "emergency_salt"));
-        return Convert.ToHexString(bytes).ToLower();
-    }
+        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(password + "emergency_salt"))).ToLower();
 
-    // ── User Operations ───────────────────────────────────────────────────────
+    // ── Users ─────────────────────────────────────────────────────────────────
 
     public async Task<UserStore> LoadUsersAsync()
     {
         await _userLock.WaitAsync();
         try   { return await LoadUsersInternalAsync(); }
         finally { _userLock.Release(); }
-    }
-
-    private async Task SaveUsersAsync(UserStore store)
-    {
-        var json = JsonSerializer.Serialize(store, JsonOpts);
-        await File.WriteAllTextAsync(_usersFile, json);
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest req)
@@ -59,38 +48,19 @@ public class JsonStorageService
         {
             var store = await LoadUsersInternalAsync();
             var email = req.Email.Trim().ToLower();
-
             if (store.Users.Any(u => u.Email == email))
-                return new AuthResponse { Success = false, Message = "This email is already registered." };
+                return new AuthResponse { Success = false, Message = "Email already registered." };
 
-            if (!string.IsNullOrEmpty(req.Phone) && store.Users.Any(u => u.Phone == req.Phone.Trim()))
-                return new AuthResponse { Success = false, Message = "This phone number is already registered." };
-
-            var role = "User";
-            if (req.Role == "Admin")
-            {
-                if (req.AdminKey != "EMERGENCY_ADMIN_2024")
-                    return new AuthResponse { Success = false, Message = "Invalid admin key." };
-                role = "Admin";
-            }
-
+            var role = req.Role == "Admin" && req.AdminKey == "EMERGENCY_ADMIN_2024" ? "Admin" : "User";
             var user = new AppUser
             {
-                Name         = req.Name.Trim(),
-                Email        = email,
-                Phone        = req.Phone.Trim(),
-                PasswordHash = HashPassword(req.Password),
-                Role         = role
+                Name = req.Name.Trim(), Email = email, Phone = req.Phone.Trim(),
+                PasswordHash = HashPassword(req.Password), Role = role
             };
-
             store.Users.Add(user);
-            await SaveUsersAsync(store);
-
-            return new AuthResponse
-            {
-                Success = true, Message = "Registration successful!",
-                UserId = user.Id, Name = user.Name, Email = user.Email, Role = user.Role
-            };
+            await File.WriteAllTextAsync(_usersFile, JsonSerializer.Serialize(store, JsonOpts));
+            return new AuthResponse { Success = true, Message = "Registration successful!",
+                UserId = user.Id, Name = user.Name, Email = user.Email, Role = user.Role };
         }
         finally { _userLock.Release(); }
     }
@@ -98,22 +68,16 @@ public class JsonStorageService
     public async Task<AuthResponse> LoginAsync(LoginRequest req)
     {
         var store = await LoadUsersAsync();
-        var email = req.Email.Trim().ToLower();
-        var hash  = HashPassword(req.Password);
-        var user  = store.Users.FirstOrDefault(u => u.Email == email && u.PasswordHash == hash);
-
+        var user  = store.Users.FirstOrDefault(u =>
+            u.Email == req.Email.Trim().ToLower() && u.PasswordHash == HashPassword(req.Password));
         if (user == null)
             return new AuthResponse { Success = false, Message = "Invalid email or password." };
-
-        return new AuthResponse
-        {
-            Success = true, Message = "Login successful!",
+        return new AuthResponse { Success = true, Message = "Login successful!",
             UserId = user.Id, Name = user.Name, Email = user.Email, Role = user.Role,
-            Token = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{user.Id}:{user.Email}:{user.Role}"))
-        };
+            Token = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{user.Id}:{user.Email}:{user.Role}")) };
     }
 
-    // ── Report Operations ─────────────────────────────────────────────────────
+    // ── Reports ───────────────────────────────────────────────────────────────
 
     public async Task<ReportStore> LoadReportsAsync()
     {
@@ -130,26 +94,33 @@ public class JsonStorageService
             var store = await LoadReportsInternalAsync();
             report.AnalysisResult = analysis;
 
-            var incidentKey = BuildIncidentKey(analysis.IncidentType,
-                report.Location, report.Lat, report.Lon);
+            var incidentKey = BuildIncidentKey(analysis.IncidentType, report.Location, report.Lat, report.Lon);
             report.IncidentKey = incidentKey;
 
-            var existing = store.Incidents.FirstOrDefault(i => i.IncidentKey == incidentKey);
+            // KEY RULE: only merge into an incident that is still OPEN.
+            // If the matching incident is accepted or resolved, always create a new row.
+            var existing = store.Incidents.FirstOrDefault(i =>
+                i.IncidentKey == incidentKey && i.Status == "open");
 
             if (existing != null)
             {
                 existing.ReportCount++;
                 existing.LastReportedAt = DateTime.UtcNow;
                 existing.Reports.Add(report);
-
                 if (SeverityRank(analysis.SeverityLevel) > SeverityRank(existing.SeverityLevel))
                     existing.SeverityLevel = analysis.SeverityLevel;
             }
             else
             {
+                // Create a fresh incident (new key with timestamp suffix if needed to avoid collision)
+                var newKey = incidentKey;
+                if (store.Incidents.Any(i => i.IncidentKey == newKey))
+                    newKey = $"{incidentKey}:{DateTime.UtcNow.Ticks}";
+                report.IncidentKey = newKey;
+
                 store.Incidents.Add(new AggregatedIncident
                 {
-                    IncidentKey     = incidentKey,
+                    IncidentKey     = newKey,
                     IncidentType    = analysis.IncidentType,
                     SeverityLevel   = analysis.SeverityLevel,
                     Location        = report.Location,
@@ -159,7 +130,6 @@ public class JsonStorageService
                     LastReportedAt  = DateTime.UtcNow,
                     ReportCount     = 1,
                     DispatchUnits   = analysis.DispatchRecommendation.UnitsRequired,
-                    Priority        = analysis.DispatchRecommendation.Priority,
                     Status          = "open",
                     Reports         = new List<StoredReport> { report }
                 });
@@ -171,7 +141,7 @@ public class JsonStorageService
         finally { _reportLock.Release(); }
     }
 
-    // ── Admin: Update severity / dispatch units / notes ───────────────────────
+    // ── Admin: Update (severity, type, dispatch units, notes) ────────────────
 
     public async Task<bool> UpdateIncidentAsync(string key, UpdateIncidentRequest req)
     {
@@ -185,8 +155,12 @@ public class JsonStorageService
             if (!string.IsNullOrWhiteSpace(req.AdminSeverity))
                 incident.AdminSeverity = req.AdminSeverity;
 
-            if (req.AdminDispatchUnits != null)
-                incident.AdminDispatchUnits = req.AdminDispatchUnits;
+            if (!string.IsNullOrWhiteSpace(req.AdminIncidentType))
+                incident.AdminIncidentType = req.AdminIncidentType;
+
+            // Full replacement of dispatch units list
+            if (req.DispatchUnits != null)
+                incident.DispatchUnits = req.DispatchUnits;
 
             if (req.AdminNotes != null)
                 incident.AdminNotes = req.AdminNotes;
@@ -197,7 +171,7 @@ public class JsonStorageService
         finally { _reportLock.Release(); }
     }
 
-    // ── Admin: Accept incident — triggers dispatch ────────────────────────────
+    // ── Admin: Accept ─────────────────────────────────────────────────────────
 
     public async Task<bool> AcceptIncidentAsync(string key, AcceptIncidentRequest req)
     {
@@ -212,8 +186,7 @@ public class JsonStorageService
             incident.AcceptedAt          = DateTime.UtcNow;
             incident.AcceptedBy          = req.AdminName;
             incident.DispatchTriggeredAt = DateTime.UtcNow;
-            if (!string.IsNullOrWhiteSpace(req.Notes))
-                incident.AdminNotes = req.Notes;
+            if (!string.IsNullOrWhiteSpace(req.Notes)) incident.AdminNotes = req.Notes;
 
             await File.WriteAllTextAsync(_reportsFile, JsonSerializer.Serialize(store, JsonOpts));
             return true;
@@ -221,7 +194,7 @@ public class JsonStorageService
         finally { _reportLock.Release(); }
     }
 
-    // ── Admin: Resolve incident ───────────────────────────────────────────────
+    // ── Admin: Resolve ────────────────────────────────────────────────────────
 
     public async Task<bool> ResolveIncidentAsync(string key, ResolveIncidentRequest req)
     {
@@ -235,8 +208,50 @@ public class JsonStorageService
             incident.Status     = "resolved";
             incident.ResolvedAt = DateTime.UtcNow;
             incident.ResolvedBy = req.AdminName;
-            if (!string.IsNullOrWhiteSpace(req.Notes))
-                incident.AdminNotes = req.Notes;
+            if (!string.IsNullOrWhiteSpace(req.Notes)) incident.AdminNotes = req.Notes;
+
+            await File.WriteAllTextAsync(_reportsFile, JsonSerializer.Serialize(store, JsonOpts));
+            return true;
+        }
+        finally { _reportLock.Release(); }
+    }
+
+    // ── Admin: Mark report as duplicate → move into target incident ───────────
+
+    public async Task<bool> MarkDuplicateAsync(MarkDuplicateRequest req)
+    {
+        await _reportLock.WaitAsync();
+        try
+        {
+            var store = await LoadReportsInternalAsync();
+
+            // Find the source incident that owns this report
+            AggregatedIncident? sourceIncident = null;
+            StoredReport? report = null;
+            foreach (var inc in store.Incidents)
+            {
+                report = inc.Reports.FirstOrDefault(r => r.ReportId == req.ReportId);
+                if (report != null) { sourceIncident = inc; break; }
+            }
+            if (sourceIncident == null || report == null) return false;
+
+            // Find target incident
+            var target = store.Incidents.FirstOrDefault(i => i.IncidentKey == req.TargetKey);
+            if (target == null) return false;
+
+            // Move report from source to target
+            sourceIncident.Reports.Remove(report);
+            sourceIncident.ReportCount = sourceIncident.Reports.Count;
+            report.IsDuplicate   = true;
+            report.DuplicateOfKey = req.TargetKey;
+            report.IncidentKey   = req.TargetKey;
+            target.Reports.Add(report);
+            target.ReportCount = target.Reports.Count;
+            target.LastReportedAt = DateTime.UtcNow;
+
+            // If source incident is now empty, remove it
+            if (sourceIncident.Reports.Count == 0)
+                store.Incidents.Remove(sourceIncident);
 
             await File.WriteAllTextAsync(_reportsFile, JsonSerializer.Serialize(store, JsonOpts));
             return true;
@@ -255,12 +270,11 @@ public class JsonStorageService
             var lonGrid = Math.Round(lon.Value, 3);
             return $"{incidentType}:{latGrid}:{lonGrid}".ToLower();
         }
-        var locKey = location.ToLower().Trim()
-            .Replace(" ", "").Replace(",", "").Replace(".", "");
+        var locKey = location.ToLower().Trim().Replace(" ", "").Replace(",", "").Replace(".", "");
         return $"{incidentType}:{locKey}".ToLower();
     }
 
-    private static int SeverityRank(string severity) => severity switch
+    private static int SeverityRank(string s) => s switch
     {
         "critical" => 4, "high" => 3, "medium" => 2, "low" => 1, _ => 0
     };
@@ -269,7 +283,6 @@ public class JsonStorageService
     {
         var store = await LoadUsersAsync();
         if (store.Users.Any()) return;
-
         await _userLock.WaitAsync();
         try
         {
@@ -280,7 +293,7 @@ public class JsonStorageService
                 Name = "Admin", Email = "admin@emergency.ai", Phone = "0000000000",
                 PasswordHash = HashPassword("Admin@123"), Role = "Admin"
             });
-            await SaveUsersAsync(s);
+            await File.WriteAllTextAsync(_usersFile, JsonSerializer.Serialize(s, JsonOpts));
         }
         finally { _userLock.Release(); }
     }
@@ -288,14 +301,14 @@ public class JsonStorageService
     private async Task<UserStore> LoadUsersInternalAsync()
     {
         if (!File.Exists(_usersFile)) return new UserStore();
-        var json = await File.ReadAllTextAsync(_usersFile);
-        return JsonSerializer.Deserialize<UserStore>(json, JsonOpts) ?? new UserStore();
+        return JsonSerializer.Deserialize<UserStore>(
+            await File.ReadAllTextAsync(_usersFile), JsonOpts) ?? new UserStore();
     }
 
     private async Task<ReportStore> LoadReportsInternalAsync()
     {
         if (!File.Exists(_reportsFile)) return new ReportStore();
-        var json = await File.ReadAllTextAsync(_reportsFile);
-        return JsonSerializer.Deserialize<ReportStore>(json, JsonOpts) ?? new ReportStore();
+        return JsonSerializer.Deserialize<ReportStore>(
+            await File.ReadAllTextAsync(_reportsFile), JsonOpts) ?? new ReportStore();
     }
 }

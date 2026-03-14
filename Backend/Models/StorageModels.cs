@@ -8,22 +8,16 @@ public class AppUser
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8].ToUpper();
-
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
-
     [JsonPropertyName("email")]
     public string Email { get; set; } = string.Empty;
-
     [JsonPropertyName("passwordHash")]
     public string PasswordHash { get; set; } = string.Empty;
-
     [JsonPropertyName("role")]
     public string Role { get; set; } = "User";
-
     [JsonPropertyName("phone")]
     public string Phone { get; set; } = string.Empty;
-
     [JsonPropertyName("registeredAt")]
     public DateTime RegisteredAt { get; set; } = DateTime.UtcNow;
 }
@@ -40,42 +34,36 @@ public class StoredReport
 {
     [JsonPropertyName("reportId")]
     public string ReportId { get; set; } = Guid.NewGuid().ToString("N")[..8].ToUpper();
-
     [JsonPropertyName("incidentKey")]
     public string IncidentKey { get; set; } = string.Empty;
-
     [JsonPropertyName("userId")]
     public string UserId { get; set; } = string.Empty;
-
     [JsonPropertyName("userName")]
     public string UserName { get; set; } = string.Empty;
-
     [JsonPropertyName("userEmail")]
     public string UserEmail { get; set; } = string.Empty;
-
     [JsonPropertyName("userRole")]
     public string UserRole { get; set; } = string.Empty;
-
     [JsonPropertyName("inputType")]
     public string InputType { get; set; } = string.Empty;
-
     [JsonPropertyName("description")]
     public string Description { get; set; } = string.Empty;
-
     [JsonPropertyName("location")]
     public string Location { get; set; } = string.Empty;
-
     [JsonPropertyName("lat")]
     public double? Lat { get; set; }
-
     [JsonPropertyName("lon")]
     public double? Lon { get; set; }
-
     [JsonPropertyName("submittedAt")]
     public DateTime SubmittedAt { get; set; } = DateTime.UtcNow;
-
     [JsonPropertyName("analysisResult")]
     public IncidentReport? AnalysisResult { get; set; }
+
+    // Set when admin marks this as duplicate of another incident
+    [JsonPropertyName("isDuplicate")]
+    public bool IsDuplicate { get; set; } = false;
+    [JsonPropertyName("duplicateOfKey")]
+    public string? DuplicateOfKey { get; set; }
 }
 
 public class AggregatedIncident
@@ -86,15 +74,18 @@ public class AggregatedIncident
     [JsonPropertyName("incidentType")]
     public string IncidentType { get; set; } = string.Empty;
 
-    // AI suggested severity
+    [JsonPropertyName("adminIncidentType")]
+    public string? AdminIncidentType { get; set; }
+
+    [JsonIgnore]
+    public string EffectiveIncidentType => AdminIncidentType ?? IncidentType;
+
     [JsonPropertyName("severityLevel")]
     public string SeverityLevel { get; set; } = string.Empty;
 
-    // Admin override severity (if set, this takes precedence)
     [JsonPropertyName("adminSeverity")]
     public string? AdminSeverity { get; set; }
 
-    // Effective severity = AdminSeverity ?? SeverityLevel
     [JsonIgnore]
     public string EffectiveSeverity => AdminSeverity ?? SeverityLevel;
 
@@ -116,23 +107,9 @@ public class AggregatedIncident
     [JsonPropertyName("reportCount")]
     public int ReportCount { get; set; } = 1;
 
-    // AI suggested dispatch units
+    // All dispatch units (AI + admin added/removed — admin list is the full override)
     [JsonPropertyName("dispatchUnits")]
     public List<string> DispatchUnits { get; set; } = new();
-
-    // Admin can add extra units or override entirely
-    [JsonPropertyName("adminDispatchUnits")]
-    public List<string> AdminDispatchUnits { get; set; } = new();
-
-    // Effective units = union of AI + admin units
-    [JsonIgnore]
-    public List<string> EffectiveDispatchUnits =>
-        DispatchUnits.Union(AdminDispatchUnits, StringComparer.OrdinalIgnoreCase).ToList();
-
-    [JsonPropertyName("priority")]
-    public int Priority { get; set; }
-
-    // ── Status & Human-in-loop ────────────────────────────────────────────────
 
     // open | accepted | resolved
     [JsonPropertyName("status")]
@@ -224,10 +201,10 @@ public class SubmitReportResponse
 
 public class UpdateIncidentRequest
 {
-    public string AdminName         { get; set; } = string.Empty;
-    public string? AdminSeverity    { get; set; }           // override severity
-    public List<string>? AdminDispatchUnits { get; set; }  // extra/override units
-    public string? AdminNotes       { get; set; }
+    public string? AdminSeverity     { get; set; }
+    public string? AdminIncidentType { get; set; }
+    public List<string>? DispatchUnits { get; set; }  // full replacement list
+    public string? AdminNotes        { get; set; }
 }
 
 public class AcceptIncidentRequest
@@ -240,4 +217,12 @@ public class ResolveIncidentRequest
 {
     public string AdminName { get; set; } = string.Empty;
     public string? Notes    { get; set; }
+}
+
+// Admin marks an orphan report as duplicate of an existing incident
+public class MarkDuplicateRequest
+{
+    public string ReportId      { get; set; } = string.Empty;  // orphan report id
+    public string TargetKey     { get; set; } = string.Empty;  // existing incident to merge into
+    public string AdminName     { get; set; } = string.Empty;
 }
