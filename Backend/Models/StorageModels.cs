@@ -76,6 +76,14 @@ public class StoredReport
 
     [JsonPropertyName("analysisResult")]
     public IncidentReport? AnalysisResult { get; set; }
+    [JsonPropertyName("uploadedimage")]
+    public string UploadedImage { get; set; } = string.Empty;
+    [JsonPropertyName("uploadedmimetype")]
+    public string UploadedMimeType { get; set; } = string.Empty;
+    
+    [JsonPropertyName("uploadedaudio")]
+    public string UploadedAudio { get; set; } = string.Empty;
+    
 }
 
 public class AggregatedIncident
