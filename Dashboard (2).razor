@@ -20,7 +20,7 @@ else if (!Auth.IsAdmin)
 }
 else
 {
-<div class="dashboard">
+<div class="dashboard @(IsDark ? "theme-dark" : "theme-light")">
 
     <!-- ── Sidebar ───────────────────────────────────────────────────── -->
     <aside class="sidebar">
@@ -37,12 +37,15 @@ else
         </nav>
         <div class="sidebar-bottom">
             <div class="user-chip">
-                <div class="avatar">@(Auth.CurrentUser!.Name[0])</div>
+                <div class="avatar">@(Auth.CurrentUser?.Name?.FirstOrDefault() ?? '?')</div>
                 <div>
-                    <div class="uname">@Auth.CurrentUser.Name</div>
+                    <div class="uname">@(Auth.CurrentUser?.Name ?? "Admin")</div>
                     <div class="urole">Administrator</div>
                 </div>
             </div>
+            <button class="theme-btn" @onclick="ToggleTheme">
+                @(IsDark ? "☀️ Light Mode" : "🌙 Dark Mode")
+            </button>
             <button class="logout-btn" @onclick="Logout">Logout</button>
         </div>
     </aside>
@@ -151,7 +154,6 @@ else
                                         {
                                             @if (TypeEditKey == inc.IncidentKey)
                                             {
-                                                <!-- Expanded type editor -->
                                                 <div class="type-editor">
                                                     <select class="field-select" @bind="TypeEditValue">
                                                         <option value="">— select —</option>
@@ -160,7 +162,7 @@ else
                                                         <option value="medical">🚑 Medical</option>
                                                         <option value="crime">🚔 Crime</option>
                                                         <option value="hazard">⚠️ Hazard</option>
-                                                         <option value="flood">🌊 Flood</option>
+                                                        <option value="flood">🌊 Flood</option>
                                                         <option value="earthquake">🏚️ Earthquake</option>
                                                         <option value="riot">👥 Riot</option>
                                                         <option value="explosion">💥 Explosion</option>
@@ -223,9 +225,9 @@ else
                                     }
                                     else if (isTruncated)
                                     {
-                                       <div class="tooltip-wrap"
-                                            @onmouseenter="e => ShowTooltip(e, fullText)"
-                                            @onmouseleave="HideTooltip">
+                                        <div class="tooltip-wrap"
+                                             @onmouseenter="e => ShowTooltip(e, fullText)"
+                                             @onmouseleave="HideTooltip">
                                             <span class="desc-text">@shortText<span class="muted">…</span></span>
                                         </div>
                                     }
@@ -235,7 +237,7 @@ else
                                     }
                                 </td>
 
-                                <!-- Dispatch units - fully editable -->
+                                <!-- Dispatch units -->
                                 <td class="dispatch-cell">
                                     @foreach (var unit in inc.DispatchUnits)
                                     {
@@ -251,13 +253,11 @@ else
                                     }
                                     @if (inc.Status != "resolved")
                                     {
-                                        <button class="edit-units-btn" @onclick="() => OpenAddUnit(inc)">
-                                            + Add
-                                        </button>
+                                        <button class="edit-units-btn" @onclick="() => OpenAddUnit(inc)">+ Add</button>
                                     }
                                 </td>
 
-                                <!-- Reports (merged: count + last time) -->
+                                <!-- Reports -->
                                 <td>
                                     <button class="count-btn" @onclick="() => OpenDetail(inc.IncidentKey)">
                                         <span class="count-num">@inc.ReportCount report@(inc.ReportCount != 1 ? "s" : "")</span>
@@ -269,9 +269,7 @@ else
                                 <td class="action-cell">
                                     @if (inc.Status == "open")
                                     {
-                                        <button class="confirm-btn" @onclick="() => ConfirmAccept(inc)">
-                                            Confirm
-                                        </button>
+                                        <button class="confirm-btn" @onclick="() => ConfirmAccept(inc)">Confirm</button>
                                     }
                                     else if (inc.Status == "accepted")
                                     {
@@ -294,7 +292,7 @@ else
                         </tbody>
                     </table>
                 </div>
-                <!-- Floating tooltip rendered at cursor position via Blazor -->
+
                 @if (TooltipVisible)
                 {
                     <div style="position:fixed;
@@ -338,9 +336,7 @@ else
                 <div class="resolve-section">
                     <p class="resolve-desc">All response steps complete? Mark this incident as resolved.</p>
                     <textarea class="resolve-notes" rows="2" placeholder="Optional notes…" @bind="ResolveNotes"></textarea>
-                    <button class="resolve-btn" @onclick="() => DoResolve(Detail.IncidentKey)">
-                        Mark as Resolved
-                    </button>
+                    <button class="resolve-btn" @onclick="() => DoResolve(Detail.IncidentKey)">Mark as Resolved</button>
                 </div>
             }
             else if (Detail.Status == "resolved")
@@ -365,20 +361,15 @@ else
                                 </div>
                             </div>
                             <div style="display:flex;gap:0.5rem;align-items:center">
-                                @if (r.IsDuplicate)
-                                {
-                                    <span class="dup-badge">Duplicate</span>
-                                }
+                                @if (r.IsDuplicate) { <span class="dup-badge">Duplicate</span> }
                                 <div class="rc-time">@r.SubmittedAt.ToString("MMM d, HH:mm:ss")</div>
                             </div>
                         </div>
                         <div class="rc-body">
                             <span class="rc-type-tag">@r.InputType</span>
                             <p class="rc-desc">@(string.IsNullOrEmpty(r.Description) ? "(No description)" : r.Description)</p>
-                            @if (!string.IsNullOrEmpty(r.Location))
-                            { <p class="rc-loc">@r.Location</p> }
+                            @if (!string.IsNullOrEmpty(r.Location)) { <p class="rc-loc">@r.Location</p> }
                         </div>
-                        <!-- Move to existing handled incident — shown on open incident reports only -->
                         @if (!r.IsDuplicate && Detail.Status == "open" && OpenIncidents.Any())
                         {
                             <div class="dup-section">
@@ -412,9 +403,7 @@ else
             <p>The following units will be dispatched for this incident:</p>
             <div class="modal-units">
                 @foreach (var unit in AcceptTarget.DispatchUnits)
-                {
-                    <span class="unit-tag">@DispatchIcon(unit) @unit</span>
-                }
+                { <span class="unit-tag">@DispatchIcon(unit) @unit</span> }
             </div>
             <div class="modal-meta">
                 Type: <strong>@AcceptTarget.DisplayIncidentType</strong>
@@ -424,13 +413,10 @@ else
                     @AcceptTarget.DisplaySeverity
                 </span>
             </div>
-            <textarea class="modal-notes" rows="2"
-                      placeholder="Optional notes for dispatch teams…"
+            <textarea class="modal-notes" rows="2" placeholder="Optional notes for dispatch teams…"
                       @bind="AcceptNotes"></textarea>
             @if (ActionMsg != null)
-            {
-                <div class="action-msg @(ActionSuccess ? "msg-ok" : "msg-err")">@ActionMsg</div>
-            }
+            { <div class="action-msg @(ActionSuccess ? "msg-ok" : "msg-err")">@ActionMsg</div> }
             <div class="modal-btns">
                 <button class="btn-cancel" @onclick="() => AcceptTarget = null">Cancel</button>
                 <button class="btn-confirm" @onclick="DoAccept" disabled="@ActionLoading">
@@ -468,9 +454,7 @@ else
                         @onclick="AddCustomUnit">Add</button>
             </div>
             @if (ActionMsg != null)
-            {
-                <div class="action-msg @(ActionSuccess ? "msg-ok" : "msg-err")">@ActionMsg</div>
-            }
+            { <div class="action-msg @(ActionSuccess ? "msg-ok" : "msg-err")">@ActionMsg</div> }
             <div class="modal-btns">
                 <button class="btn-cancel" @onclick="() => AddUnitTarget = null">Done</button>
             </div>
@@ -480,16 +464,18 @@ else
 }
 
 @code {
-    List<AggregatedIncidentSummary> Incidents    = new();
-    List<OpenIncidentOption>        OpenIncidents = new();
+    List<AggregatedIncidentSummary> Incidents     = new();
+    List<OpenIncidentOption>        OpenIncidents  = new();
     AggregatedIncidentDetail?       Detail;
     AggregatedIncidentSummary?      AcceptTarget;
     AggregatedIncidentSummary?      AddUnitTarget;
 
-    bool   IsLoading, DetailOpen, ActionLoading, ActionSuccess;
+    bool    IsLoading, DetailOpen, ActionLoading, ActionSuccess;
     string? ActionMsg, AcceptNotes, ResolveNotes, CustomUnitInput;
 
-    // Tooltip state
+    bool    IsDark = true;
+    void ToggleTheme() { IsDark = !IsDark; }
+
     bool    TooltipVisible;
     double  TooltipX, TooltipY;
     string  TooltipText = string.Empty;
@@ -502,7 +488,7 @@ else
         TooltipText = text;
     }
     void HideTooltip() { TooltipVisible = false; }
-    // Type edit state
+
     string? TypeEditKey;
     string  TypeEditValue  = string.Empty;
     string  TypeEditCustom = string.Empty;
@@ -510,12 +496,14 @@ else
     static readonly string[] AllPresets =
         { "police","traffic_police","ambulance","fire","tow_truck",
           "utility","rescue","coast_guard","bomb_squad","hazmat","k9_unit","drone_unit" };
+
     string CurrentTime = DateTime.Now.ToString("ddd dd MMM yyyy, HH:mm:ss");
     System.Threading.Timer? _clock;
+
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsLoggedIn) { Nav.NavigateTo("/login"); return; }
-        if (!Auth.IsAdmin) return;
+        if (!Auth.IsAdmin) { Nav.NavigateTo("/report"); return; }
         _clock = new System.Threading.Timer(_ =>
         {
             CurrentTime = DateTime.Now.ToString("ddd dd MMM yyyy, HH:mm:ss");
@@ -523,7 +511,9 @@ else
         }, null, 0, 1000);
         await LoadAll();
     }
+
     public void Dispose() { _clock?.Dispose(); }
+
     async Task LoadAll()
     {
         IsLoading = true;
@@ -541,11 +531,10 @@ else
     void CloseDetail() { DetailOpen = false; Detail = null; ResolveNotes = null; ActionMsg = null; }
     void Logout()      { Auth.Logout(); Nav.NavigateTo("/login"); }
 
-    // ── Type edit ─────────────────────────────────────────────────────────────
     void StartTypeEdit(AggregatedIncidentSummary inc)
     {
-        TypeEditKey    = inc.IncidentKey;
-        TypeEditValue  = inc.AdminIncidentType ?? inc.IncidentType;
+        TypeEditKey = inc.IncidentKey;
+        TypeEditValue = inc.AdminIncidentType ?? inc.IncidentType;
         TypeEditCustom = string.Empty;
     }
     void CancelTypeEdit() { TypeEditKey = null; TypeEditValue = string.Empty; TypeEditCustom = string.Empty; }
@@ -561,7 +550,6 @@ else
         if (ok) { CancelTypeEdit(); await LoadAll(); }
     }
 
-    // ── Severity ──────────────────────────────────────────────────────────────
     async Task OnSeverityChange(AggregatedIncidentSummary inc, string? val)
     {
         if (string.IsNullOrEmpty(val)) return;
@@ -570,7 +558,6 @@ else
         if (ok) await LoadAll();
     }
 
-    // ── Dispatch units ────────────────────────────────────────────────────────
     void OpenAddUnit(AggregatedIncidentSummary inc)
     { AddUnitTarget = inc; CustomUnitInput = string.Empty; ActionMsg = null; }
 
@@ -612,7 +599,6 @@ else
         AddUnitTarget = Incidents.FirstOrDefault(i => i.IncidentKey == AddUnitTarget?.IncidentKey);
     }
 
-    // ── Accept / Confirm ──────────────────────────────────────────────────────
     void ConfirmAccept(AggregatedIncidentSummary inc)
     { AcceptTarget = inc; AcceptNotes = null; ActionMsg = null; }
 
@@ -626,7 +612,6 @@ else
         if (ok) { await Task.Delay(800); AcceptTarget = null; await LoadAll(); }
     }
 
-    // ── Resolve ───────────────────────────────────────────────────────────────
     async Task DoResolve(string key)
     {
         var (ok, msg) = await ReportApi.ResolveIncidentAsync(key, "Admin",
@@ -635,17 +620,11 @@ else
         else    { ActionMsg = msg; ActionSuccess = false; }
     }
 
-    // ── Duplicate marking ─────────────────────────────────────────────────────
     async Task OnDuplicateSelect(string reportId, string? targetKey)
     {
         if (string.IsNullOrEmpty(targetKey)) return;
         var (ok, msg) = await ReportApi.MarkDuplicateAsync("Admin",
-            new MarkDuplicateRequest
-            {
-                ReportId  = reportId,
-                TargetKey = targetKey,
-                AdminName = Auth.CurrentUser!.Name
-            });
+            new MarkDuplicateRequest { ReportId = reportId, TargetKey = targetKey, AdminName = Auth.CurrentUser!.Name });
         if (ok && Detail != null)
         {
             Detail = await ReportApi.GetIncidentDetailAsync(Detail.IncidentKey, "Admin");
@@ -653,7 +632,6 @@ else
         }
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
     static string TruncateWords(string text, int max)
     {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
@@ -663,24 +641,77 @@ else
 
     static string DispatchIcon(string unit) => unit.ToLower() switch
     {
-        "fire"           => "🔥",  "ambulance"      => "🚑",
-        "police"         => "🚔",  "traffic_police" => "🚦",
-        "tow_truck"      => "🚛",  "utility"        => "⚡",
-        "rescue"         => "🛟",  "coast_guard"    => "⛵",
-        "bomb_squad"     => "💣",  "hazmat"         => "☢️",
-        "k9_unit"        => "🐕",  "drone_unit"     => "🚁",
-         "flood_rescue"   => "🌊",  "earthquake_response" => "🏚️",
-        "riot_control"   => "👥",  "national_guard" => "🪖",
+        "fire"                => "🔥", "ambulance"            => "🚑",
+        "police"              => "🚔", "traffic_police"       => "🚦",
+        "tow_truck"           => "🚛", "utility"              => "⚡",
+        "rescue"              => "🛟", "coast_guard"          => "⛵",
+        "bomb_squad"          => "💣", "hazmat"               => "☢️",
+        "k9_unit"             => "🐕", "drone_unit"           => "🚁",
+        "flood_rescue"        => "🌊", "earthquake_response"  => "🏚️",
+        "riot_control"        => "👥", "national_guard"       => "🪖",
         _ => "●"
     };
 }
 
 <style>
-.dashboard { display:flex; min-height:100vh; background:#f0f2f5;
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-    font-size:0.875rem; color:#1a1a2e; }
+/* ── Themes ───────────────────────────────────────────────────────────── */
+.theme-dark {
+    --bg-page:        #f0f2f5;
+    --bg-card:        #ffffff;
+    --bg-hover:       #fafafa;
+    --bg-input:       #f9fafb;
+    --bg-tag:         #f3f4f6;
+    --border:         #e5e7eb;
+    --border-light:   #f3f4f6;
+    --border-row:     #f5f5f7;
+    --text-primary:   #111827;
+    --text-secondary: #374151;
+    --text-muted:     #9ca3af;
+    --topbar-bg:      #ffffff;
+    --table-head-bg:  #fafafa;
+    --modal-bg:       #ffffff;
+    --drawer-bg:      #ffffff;
+    --report-card-bg: #fafafa;
+    --input-bg:       #ffffff;
+    --select-bg:      #ffffff;
+    --resolve-bg:     #f0fdf4;
+    --resolve-border: #bbf7d0;
+    --resolve-text:   #166534;
+    --resolved-bg:    #f0fdf4;
+}
 
-/* Sidebar */
+.theme-light {
+    --bg-page:        #eef2ff;
+    --bg-card:        #ffffff;
+    --bg-hover:       #eef2ff;
+    --bg-input:       #f5f7ff;
+    --bg-tag:         #e8ecfb;
+    --border:         #c7d2fe;
+    --border-light:   #dde4ff;
+    --border-row:     #e8ecfb;
+    --text-primary:   #0f172a;
+    --text-secondary: #1e293b;
+    --text-muted:     #64748b;
+    --topbar-bg:      #ffffff;
+    --table-head-bg:  #eef2ff;
+    --modal-bg:       #ffffff;
+    --drawer-bg:      #ffffff;
+    --report-card-bg: #f5f7ff;
+    --input-bg:       #ffffff;
+    --select-bg:      #ffffff;
+    --resolve-bg:     #f0fdf4;
+    --resolve-border: #bbf7d0;
+    --resolve-text:   #166534;
+    --resolved-bg:    #f0fdf4;
+}
+
+/* ── Base ─────────────────────────────────────────────────────────────── */
+.dashboard { display:flex; min-height:100vh; background:var(--bg-page);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    font-size:0.875rem; color:var(--text-primary);
+    transition: background 0.25s ease, color 0.25s ease; }
+
+/* ── Sidebar (always dark) ────────────────────────────────────────────── */
 .sidebar { width:210px; background:#1e2330; color:#c8cdd8; display:flex;
     flex-direction:column; padding:1.25rem 0.875rem; flex-shrink:0; }
 .brand { display:flex; align-items:center; gap:0.6rem; margin-bottom:1.75rem; padding:0 0.25rem; }
@@ -700,31 +731,42 @@ else
     font-weight:700; font-size:0.82rem; color:white; flex-shrink:0; }
 .uname { font-size:0.8rem; font-weight:600; color:#eaedf2; }
 .urole { font-size:0.65rem; color:#6b7280; }
+.theme-btn { background:rgba(255,255,255,0.05); border:1px solid #374151; color:#9ca3af;
+    border-radius:6px; padding:0.4rem 0.65rem; font-size:0.8rem; cursor:pointer;
+    text-align:left; transition:background 0.15s; width:100%; }
+.theme-btn:hover { background:rgba(255,255,255,0.1); color:#d1d5db; }
 .logout-btn { background:transparent; border:1px solid #374151; color:#9ca3af;
-    border-radius:6px; padding:0.4rem 0.65rem; font-size:0.8rem; cursor:pointer; text-align:left; }
+    border-radius:6px; padding:0.4rem 0.65rem; font-size:0.8rem; cursor:pointer;
+    text-align:left; transition:background 0.15s; }
 .logout-btn:hover { background:rgba(255,255,255,0.05); color:#d1d5db; }
 
-/* Main */
-.main-area { flex:1; overflow-y:auto; overflow-x:visible; }
+/* ── Main ─────────────────────────────────────────────────────────────── */
+.main-area { flex:1; overflow-y:auto; overflow-x:visible; background:var(--bg-page);
+    transition: background 0.25s ease; }
 .topbar { display:flex; justify-content:space-between; align-items:flex-start;
-    padding:1.25rem 1.75rem 1rem; background:white; border-bottom:1px solid #e5e7eb; }
-.page-title { font-size:1.15rem; font-weight:700; margin:0; color:#111827; }
-.page-sub { color:#9ca3af; font-size:0.78rem; margin:0.15rem 0 0; }
+    padding:1.25rem 1.75rem 1rem; background:var(--topbar-bg);
+    border-bottom:1px solid var(--border);
+    transition: background 0.25s ease, border-color 0.25s ease; }
+.page-title { font-size:1.15rem; font-weight:700; margin:0; color:var(--text-primary); }
+.page-sub { color:var(--text-muted); font-size:0.78rem; margin:0.15rem 0 0; }
 .topbar-actions { display:flex; gap:0.6rem; align-items:center; }
-.topbar-time { font-size:0.8rem; color:#6b7280; font-variant-numeric:tabular-nums; white-space:nowrap; }
-.refresh-btn { background:#f9fafb; border:1px solid #e5e7eb; border-radius:6px;
-    padding:0.45rem 0.9rem; font-size:0.82rem; cursor:pointer; color:#374151; }
-.refresh-btn:hover { background:#f3f4f6; }
+.topbar-time { font-size:0.8rem; color:var(--text-muted); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.refresh-btn { background:var(--bg-input); border:1px solid var(--border); border-radius:6px;
+    padding:0.45rem 0.9rem; font-size:0.82rem; cursor:pointer; color:var(--text-secondary);
+    transition: all 0.2s ease; }
+.refresh-btn:hover { background:var(--bg-hover); }
 .btn-primary { background:#3b5bdb; color:white; border:none; border-radius:6px;
     padding:0.45rem 1rem; font-weight:600; cursor:pointer; font-size:0.82rem; }
 .btn-primary:hover { background:#3451c7; }
 
-/* KPIs */
+/* ── KPIs ─────────────────────────────────────────────────────────────── */
 .kpi-grid { display:flex; gap:0.875rem; padding:1.25rem 1.75rem 0; flex-wrap:wrap; }
-.kpi-card { flex:1; min-width:90px; background:white; border-radius:8px; padding:1rem;
-    text-align:center; border:1px solid #e5e7eb; border-top:2px solid #e5e7eb; }
-.kpi-val { font-size:1.75rem; font-weight:700; color:#111827; line-height:1; }
-.kpi-lbl { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.06em; color:#9ca3af; margin-top:0.25rem; }
+.kpi-card { flex:1; min-width:90px; background:var(--bg-card); border-radius:8px; padding:1rem;
+    text-align:center; border:1px solid var(--border); border-top:2px solid var(--border);
+    transition: background 0.25s ease, border-color 0.25s ease; }
+.kpi-val { font-size:1.75rem; font-weight:700; color:var(--text-primary); line-height:1; }
+.kpi-lbl { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.06em;
+    color:var(--text-muted); margin-top:0.25rem; }
 .kpi-critical   { border-top-color:#dc2626; }
 .kpi-high       { border-top-color:#d97706; }
 .kpi-open       { border-top-color:#b45309; }
@@ -732,12 +774,13 @@ else
 .kpi-resolved   { border-top-color:#16a34a; }
 .kpi-total      { border-top-color:#6b7280; }
 
-/* Table card */
-.table-card { background:white; border-radius:8px; margin:1.25rem 1.75rem;
-    border:1px solid #e5e7eb; overflow:visible; }
+/* ── Table ────────────────────────────────────────────────────────────── */
+.table-card { background:var(--bg-card); border-radius:8px; margin:1.25rem 1.75rem;
+    border:1px solid var(--border); overflow:visible;
+    transition: background 0.25s ease, border-color 0.25s ease; }
 .table-header { display:flex; justify-content:space-between; align-items:center;
-    padding:0.875rem 1.25rem; border-bottom:1px solid #f3f4f6; }
-.table-header h3 { margin:0; font-size:0.88rem; font-weight:600; color:#374151; }
+    padding:0.875rem 1.25rem; border-bottom:1px solid var(--border-light); }
+.table-header h3 { margin:0; font-size:0.88rem; font-weight:600; color:var(--text-secondary); }
 .live-badge { background:#fee2e2; color:#991b1b; font-size:0.65rem; font-weight:700;
     padding:0.15rem 0.6rem; border-radius:4px; text-transform:uppercase; letter-spacing:0.05em;
     display:inline-flex; align-items:center; gap:0.35rem; }
@@ -746,26 +789,32 @@ else
 @@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.15; } }
 .table-wrap { overflow-x:auto; overflow-y:visible; }
 .inc-table { width:100%; border-collapse:collapse; }
-.inc-table th { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.06em; color:#9ca3af;
-    text-align:left; padding:0.6rem 1rem; background:#fafafa; border-bottom:1px solid #f3f4f6; white-space:nowrap; }
-.inc-row td { padding:0.7rem 1rem; border-bottom:1px solid #f5f5f7; vertical-align:top; }
+.inc-table th { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.06em;
+    color:var(--text-muted); text-align:left; padding:0.6rem 1rem;
+    background:var(--table-head-bg); border-bottom:1px solid var(--border); white-space:nowrap;
+    transition: background 0.25s ease; }
+.inc-row td { padding:0.7rem 1rem; border-bottom:1px solid var(--border-row);
+    vertical-align:top; color:var(--text-secondary);
+    transition: background 0.2s ease, color 0.2s ease; }
 .inc-row:last-child td { border-bottom:none; }
-.inc-row:hover td { background:#fafafa; }
-.row-resolved td { color:#9ca3af; }
-.state-msg { text-align:center; padding:3rem; color:#9ca3af; font-size:0.88rem; }
+.inc-row:hover td { background:var(--bg-hover); }
+.row-resolved td { color:var(--text-muted); }
+.state-msg { text-align:center; padding:3rem; color:var(--text-muted); font-size:0.88rem; }
 
 /* Status */
 .status-pill { font-size:0.7rem; font-weight:600; padding:0.2rem 0.55rem;
     border-radius:4px; white-space:nowrap; display:inline-block; }
 
-/* Field wrap (type/severity column) */
+/* Field wrap */
 .field-wrap { display:flex; flex-direction:column; gap:0.2rem; min-width:95px; }
-.field-hint { font-size:0.65rem; color:#9ca3af; font-style:italic; }
-.field-select { font-size:0.73rem; border:1px solid #e5e7eb; border-radius:4px;
-    padding:0.18rem 0.35rem; background:white; cursor:pointer; color:#374151; width:100%; }
-.field-input { font-size:0.73rem; border:1px solid #e5e7eb; border-radius:4px;
-    padding:0.22rem 0.4rem; width:100%; margin-top:0.1rem; }
-.type-val { font-size:0.82rem; font-weight:500; color:#374151; }
+.field-hint { font-size:0.65rem; color:var(--text-muted); font-style:italic; }
+.field-select { font-size:0.73rem; border:1px solid var(--border); border-radius:4px;
+    padding:0.18rem 0.35rem; background:var(--select-bg); cursor:pointer;
+    color:var(--text-secondary); width:100%; transition: all 0.2s ease; }
+.field-input { font-size:0.73rem; border:1px solid var(--border); border-radius:4px;
+    padding:0.22rem 0.4rem; width:100%; margin-top:0.1rem;
+    background:var(--input-bg); color:var(--text-secondary); }
+.type-val { font-size:0.82rem; font-weight:500; color:var(--text-secondary); }
 .edit-link { background:none; border:none; color:#4b6bfb; font-size:0.72rem;
     cursor:pointer; padding:0; text-decoration:underline; text-underline-offset:2px; }
 
@@ -774,40 +823,40 @@ else
 .type-editor-btns { display:flex; gap:0.3rem; }
 .btn-mini-confirm { background:#3b5bdb; color:white; border:none; border-radius:4px;
     padding:0.2rem 0.55rem; font-size:0.72rem; cursor:pointer; }
-.btn-mini-cancel { background:#f3f4f6; border:1px solid #e5e7eb; border-radius:4px;
-    padding:0.2rem 0.55rem; font-size:0.72rem; cursor:pointer; color:#374151; }
+.btn-mini-cancel { background:var(--bg-tag); border:1px solid var(--border); border-radius:4px;
+    padding:0.2rem 0.55rem; font-size:0.72rem; cursor:pointer; color:var(--text-secondary); }
 
 /* Severity */
 .sev-pill { font-size:0.7rem; font-weight:600; padding:0.2rem 0.55rem;
     border-radius:4px; display:inline-block; text-transform:capitalize; }
 
-/* Tooltip — only the wrap style needed; popup rendered as Blazor element */
+/* Tooltip */
 .tooltip-wrap { display:inline-block; cursor:help; }
 .desc-cell { max-width:200px; }
-.desc-text { font-size:0.82rem; color:#374151; line-height:1.4; }
+.desc-text { font-size:0.82rem; color:var(--text-secondary); line-height:1.4; }
+.muted { color:var(--text-muted); }
 
-.muted { color:#9ca3af; }
-
-/* Dispatch units */
+/* Dispatch */
 .dispatch-cell { max-width:220px; vertical-align:top; }
 .unit-tag { display:inline-flex; align-items:center; gap:0.2rem;
-    background:#f3f4f6; border:1px solid #e5e7eb; border-radius:4px;
-    padding:0.15rem 0.4rem; font-size:0.73rem; color:#374151; margin:0.1rem 0.1rem 0.1rem 0; }
+    background:var(--bg-tag); border:1px solid var(--border); border-radius:4px;
+    padding:0.15rem 0.4rem; font-size:0.73rem; color:var(--text-secondary);
+    margin:0.1rem 0.1rem 0.1rem 0; transition: background 0.2s ease; }
 .remove-x { background:none; border:none; color:#dc2626; cursor:pointer;
     font-size:0.88rem; line-height:1; padding:0 0.1rem; margin-left:0.1rem; font-weight:700; }
 .remove-x:hover { color:#b91c1c; }
-.edit-units-btn { background:none; border:1px dashed #9ca3af; color:#6b7280;
+.edit-units-btn { background:none; border:1px dashed var(--text-muted); color:var(--text-muted);
     border-radius:4px; padding:0.15rem 0.45rem; font-size:0.72rem;
     cursor:pointer; margin-top:0.1rem; display:inline-block; }
 .edit-units-btn:hover { border-color:#4b6bfb; color:#4b6bfb; }
 
-/* Reports merged */
-.count-btn { background:none; border:1px solid #e5e7eb; border-radius:6px;
+/* Reports */
+.count-btn { background:none; border:1px solid var(--border); border-radius:6px;
     padding:0.3rem 0.6rem; cursor:pointer; text-align:left;
-    display:flex; flex-direction:column; gap:0.1rem; }
-.count-btn:hover { background:#f3f4f6; }
+    display:flex; flex-direction:column; gap:0.1rem; transition: background 0.15s; }
+.count-btn:hover { background:var(--bg-hover); }
 .count-num  { font-size:0.8rem; font-weight:600; color:#2563eb; }
-.count-time { font-size:0.7rem; color:#9ca3af; }
+.count-time { font-size:0.7rem; color:var(--text-muted); }
 
 /* Actions */
 .action-cell { white-space:nowrap; vertical-align:middle; }
@@ -816,94 +865,104 @@ else
 .confirm-btn:hover { background:#1d4ed8; }
 .dispatched-info { display:flex; flex-direction:column; }
 .dispatched-label { font-size:0.78rem; font-weight:600; color:#2563eb; }
-.dispatched-time  { font-size:0.7rem; color:#9ca3af; }
+.dispatched-time  { font-size:0.7rem; color:var(--text-muted); }
 .resolved-label   { font-size:0.78rem; color:#16a34a; font-weight:500; }
 
 /* Drawer */
 .drawer-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.35);
     z-index:100; display:flex; justify-content:flex-end; }
-.drawer { width:100%; max-width:560px; background:white; height:100%;
-    overflow-y:auto; padding:1.5rem; display:flex; flex-direction:column; gap:1rem; }
+.drawer { width:100%; max-width:560px; background:var(--drawer-bg); height:100%;
+    overflow-y:auto; padding:1.5rem; display:flex; flex-direction:column; gap:1rem;
+    transition: background 0.25s ease; }
 .drawer-header { display:flex; justify-content:space-between; align-items:flex-start; }
-.drawer-header h3 { margin:0; font-size:1rem; font-weight:700; color:#111827; }
-.drawer-sub { color:#9ca3af; font-size:0.78rem; margin:0.2rem 0 0; }
-.close-x { background:#f3f4f6; border:1px solid #e5e7eb; border-radius:50%;
-    width:30px; height:30px; cursor:pointer; font-size:0.9rem; color:#6b7280; flex-shrink:0; }
+.drawer-header h3 { margin:0; font-size:1rem; font-weight:700; color:var(--text-primary); }
+.drawer-sub { color:var(--text-muted); font-size:0.78rem; margin:0.2rem 0 0; }
+.close-x { background:var(--bg-tag); border:1px solid var(--border); border-radius:50%;
+    width:30px; height:30px; cursor:pointer; font-size:0.9rem; color:var(--text-muted); flex-shrink:0; }
 
 /* Resolve */
-.resolve-section { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:1rem; }
-.resolve-desc { color:#166534; font-size:0.82rem; margin:0 0 0.65rem; }
-.resolve-notes { width:100%; border:1px solid #bbf7d0; border-radius:6px; padding:0.55rem;
-    font-size:0.85rem; background:white; box-sizing:border-box; margin-bottom:0.65rem; }
+.resolve-section { background:var(--resolve-bg); border:1px solid var(--resolve-border);
+    border-radius:8px; padding:1rem; }
+.resolve-desc { color:var(--resolve-text); font-size:0.82rem; margin:0 0 0.65rem; }
+.resolve-notes { width:100%; border:1px solid var(--resolve-border); border-radius:6px;
+    padding:0.55rem; font-size:0.85rem; background:var(--input-bg);
+    color:var(--text-secondary); box-sizing:border-box; margin-bottom:0.65rem; }
 .resolve-btn { width:100%; background:#16a34a; color:white; border:none; border-radius:6px;
     padding:0.65rem; font-weight:600; font-size:0.88rem; cursor:pointer; }
 .resolve-btn:hover { background:#15803d; }
-.resolved-banner { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px;
-    padding:0.875rem; color:#166534; font-size:0.85rem; }
-.resolved-note-text { color:#166534; font-size:0.8rem; margin:0.4rem 0 0; }
+.resolved-banner { background:var(--resolved-bg); border:1px solid var(--resolve-border);
+    border-radius:8px; padding:0.875rem; color:var(--resolve-text); font-size:0.85rem; }
+.resolved-note-text { color:var(--resolve-text); font-size:0.8rem; margin:0.4rem 0 0; }
 
 /* Report cards */
 .report-list { display:flex; flex-direction:column; gap:0.65rem; }
-.report-card { border:1px solid #f0f0f0; border-radius:8px; padding:0.875rem; background:#fafafa; }
-.card-duplicate { border-color:#e5e7eb; opacity:0.75; }
+.report-card { border:1px solid var(--border-light); border-radius:8px;
+    padding:0.875rem; background:var(--report-card-bg);
+    transition: background 0.25s ease; }
+.card-duplicate { opacity:0.75; }
 .rc-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.65rem; }
 .rc-user { display:flex; align-items:center; gap:0.55rem; }
 .rc-avatar { width:30px; height:30px; border-radius:50%; background:#4b6bfb;
     display:flex; align-items:center; justify-content:center;
     color:white; font-weight:700; font-size:0.82rem; flex-shrink:0; }
-.rc-name  { font-weight:600; font-size:0.85rem; color:#111827; }
-.rc-meta  { font-size:0.72rem; color:#9ca3af; }
-.rc-time  { font-size:0.72rem; color:#9ca3af; white-space:nowrap; }
-.rc-body  { border-top:1px solid #f0f0f0; padding-top:0.65rem; }
-.rc-type-tag { background:#f3f4f6; border-radius:4px; padding:0.1rem 0.45rem;
-    font-size:0.68rem; font-weight:700; color:#6b7280; text-transform:uppercase; }
-.rc-desc  { color:#374151; font-size:0.84rem; margin:0.45rem 0 0; line-height:1.5; }
-.rc-loc   { color:#9ca3af; font-size:0.77rem; margin:0.25rem 0 0; }
-.rc-id    { font-size:0.68rem; color:#d1d5db; font-family:monospace; margin-top:0.45rem; }
+.rc-name  { font-weight:600; font-size:0.85rem; color:var(--text-primary); }
+.rc-meta  { font-size:0.72rem; color:var(--text-muted); }
+.rc-time  { font-size:0.72rem; color:var(--text-muted); white-space:nowrap; }
+.rc-body  { border-top:1px solid var(--border-light); padding-top:0.65rem; }
+.rc-type-tag { background:var(--bg-tag); border-radius:4px; padding:0.1rem 0.45rem;
+    font-size:0.68rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; }
+.rc-desc  { color:var(--text-secondary); font-size:0.84rem; margin:0.45rem 0 0; line-height:1.5; }
+.rc-loc   { color:var(--text-muted); font-size:0.77rem; margin:0.25rem 0 0; }
+.rc-id    { font-size:0.68rem; color:var(--text-muted); font-family:monospace; margin-top:0.45rem; opacity:0.5; }
 .dup-badge { background:#fef3c7; color:#92400e; font-size:0.68rem; font-weight:700;
     padding:0.1rem 0.4rem; border-radius:4px; border:1px solid #fde68a; }
 
-/* Duplicate section */
-.dup-section { border-top:1px solid #f0f0f0; padding-top:0.5rem; margin-top:0.5rem;
+/* Duplicate */
+.dup-section { border-top:1px solid var(--border-light); padding-top:0.5rem; margin-top:0.5rem;
     display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; }
-.dup-label { font-size:0.72rem; color:#9ca3af; white-space:nowrap; }
-.dup-select { font-size:0.75rem; border:1px solid #e5e7eb; border-radius:5px;
-    padding:0.2rem 0.4rem; background:white; cursor:pointer; flex:1; min-width:160px; }
+.dup-label { font-size:0.72rem; color:var(--text-muted); white-space:nowrap; }
+.dup-select { font-size:0.75rem; border:1px solid var(--border); border-radius:5px;
+    padding:0.2rem 0.4rem; background:var(--select-bg); color:var(--text-secondary);
+    cursor:pointer; flex:1; min-width:160px; }
 
 /* Modal */
 .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.4);
     z-index:200; display:flex; align-items:center; justify-content:center; padding:1rem; }
-.modal { background:white; border-radius:12px; padding:1.75rem; width:100%; max-width:460px;
-    box-shadow:0 12px 40px rgba(0,0,0,0.15); }
+.modal { background:var(--modal-bg); border-radius:12px; padding:1.75rem;
+    width:100%; max-width:460px; box-shadow:0 12px 40px rgba(0,0,0,0.15);
+    transition: background 0.25s ease; }
 .modal-wide { max-width:500px; }
-.modal h3 { margin:0 0 0.5rem; font-size:1rem; font-weight:700; color:#111827; }
-.modal p  { color:#6b7280; font-size:0.84rem; margin:0 0 0.65rem; }
+.modal h3 { margin:0 0 0.5rem; font-size:1rem; font-weight:700; color:var(--text-primary); }
+.modal p  { color:var(--text-muted); font-size:0.84rem; margin:0 0 0.65rem; }
 .modal-units { display:flex; flex-wrap:wrap; gap:0.35rem; margin-bottom:1rem; }
-.modal-meta { margin-bottom:1rem; font-size:0.84rem; color:#374151;
+.modal-meta { margin-bottom:1rem; font-size:0.84rem; color:var(--text-secondary);
     display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; }
-.modal-notes { width:100%; border:1px solid #e5e7eb; border-radius:6px; padding:0.6rem;
-    font-size:0.85rem; box-sizing:border-box; margin-bottom:1rem; }
+.modal-notes { width:100%; border:1px solid var(--border); border-radius:6px; padding:0.6rem;
+    font-size:0.85rem; box-sizing:border-box; margin-bottom:1rem;
+    background:var(--input-bg); color:var(--text-secondary); }
 .modal-btns { display:flex; gap:0.6rem; justify-content:flex-end; }
-.btn-cancel  { background:#f3f4f6; border:1px solid #e5e7eb; border-radius:6px;
-    padding:0.55rem 1.1rem; font-size:0.85rem; cursor:pointer; color:#374151; }
+.btn-cancel  { background:var(--bg-tag); border:1px solid var(--border); border-radius:6px;
+    padding:0.55rem 1.1rem; font-size:0.85rem; cursor:pointer; color:var(--text-secondary); }
 .btn-confirm { background:#2563eb; color:white; border:none; border-radius:6px;
     padding:0.55rem 1.3rem; font-size:0.85rem; font-weight:600; cursor:pointer; }
 .btn-confirm:disabled { opacity:0.5; }
-.action-msg { padding:0.55rem 0.8rem; border-radius:6px; font-size:0.82rem; font-weight:500; margin-bottom:0.75rem; }
+.action-msg { padding:0.55rem 0.8rem; border-radius:6px; font-size:0.82rem;
+    font-weight:500; margin-bottom:0.75rem; }
 .msg-ok  { background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; }
 .msg-err { background:#fff1f2; color:#991b1b; border:1px solid #fecaca; }
-.section-label { font-size:0.75rem; font-weight:600; color:#6b7280;
+.section-label { font-size:0.75rem; font-weight:600; color:var(--text-muted);
     text-transform:uppercase; letter-spacing:0.04em; margin:0 0 0.45rem; display:block; }
 
 /* Unit presets */
 .unit-presets { display:flex; flex-wrap:wrap; gap:0.35rem; margin-bottom:0.75rem; }
-.preset-btn { background:#f3f4f6; border:1px solid #e5e7eb; border-radius:5px;
-    padding:0.28rem 0.6rem; font-size:0.78rem; cursor:pointer; color:#374151; }
+.preset-btn { background:var(--bg-tag); border:1px solid var(--border); border-radius:5px;
+    padding:0.28rem 0.6rem; font-size:0.78rem; cursor:pointer; color:var(--text-secondary); }
 .preset-btn:hover:not(.preset-added):not(:disabled) { background:#dbeafe; border-color:#93c5fd; color:#1e40af; }
 .preset-added { background:#d1fae5; border-color:#6ee7b7; color:#065f46; cursor:default; }
 .custom-unit-row { display:flex; gap:0.5rem; margin-bottom:1rem; }
-.custom-unit-row input { flex:1; border:1px solid #e5e7eb; border-radius:6px;
-    padding:0.45rem 0.65rem; font-size:0.85rem; }
+.custom-unit-row input { flex:1; border:1px solid var(--border); border-radius:6px;
+    padding:0.45rem 0.65rem; font-size:0.85rem;
+    background:var(--input-bg); color:var(--text-secondary); }
 .btn-add-custom { background:#2563eb; color:white; border:none; border-radius:6px;
     padding:0.45rem 0.9rem; font-size:0.82rem; font-weight:600; cursor:pointer; }
 .btn-add-custom:disabled { opacity:0.4; cursor:default; }

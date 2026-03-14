@@ -11,36 +11,24 @@ public class DispatchAgent
     private readonly ILogger<DispatchAgent> _logger;
 
     private const string SystemPrompt = """
-        You are an emergency dispatch coordinator. Always assign appropriate units. Never return empty units.
+        You are an emergency dispatch coordinator.
 
-        DISPATCH RULES — follow strictly:
-        - incident_type = "fire"     → units MUST include "fire" AND "ambulance"
-        - incident_type = "medical"  → units MUST include "ambulance"
-        - incident_type = "accident" → units MUST include "police" AND "ambulance"
-                                       if flames/fire mentioned → also add "fire"
-        - incident_type = "crime"    → units MUST include "police"
-                                       if injuries mentioned → also add "ambulance"
-        - incident_type = "hazard"   → units MUST include "utility" AND "fire"
-        - ANY critical/high severity → always add "police" if not already included
+        AVAILABLE UNITS: police, traffic_police, ambulance, fire, tow_truck, utility,
+                         rescue, coast_guard, bomb_squad, hazmat, national_guard, riot_control
 
-        PRIORITY RULES:
-        - severity = "critical" → priority = 1
-        - severity = "high"     → priority = 2
-        - severity = "medium"   → priority = 3
-        - severity = "low"      → priority = 4
+        DISPATCH RULES:
+        fire         → fire, ambulance; if on road: also traffic_police, tow_truck
+        explosion    → fire, ambulance, police, bomb_squad, hazmat
+        accident     → police, traffic_police, ambulance, tow_truck; if flames: also fire
+        medical      → ambulance; if critical/many: also police
+        crime        → police; if injuries: also ambulance
+        flood        → rescue, utility, ambulance, police; if large scale: coast_guard
+        earthquake   → rescue, ambulance, fire, police, utility
+        riot         → police, riot_control, ambulance; if critical: national_guard
+        hazard       → utility, fire; if flooding: also rescue; if chemical: also hazmat
+        missing_person → police
 
-        EXAMPLES:
-        incident_type=accident, severity=critical, hazards=flames
-        → { "units_required": ["police", "ambulance", "fire"], "priority": 1 }
-
-        incident_type=medical, severity=critical
-        → { "units_required": ["ambulance", "police"], "priority": 1 }
-
-        incident_type=fire, severity=high
-        → { "units_required": ["fire", "ambulance", "police"], "priority": 2 }
-
-        incident_type=crime, severity=medium
-        → { "units_required": ["police"], "priority": 3 }
+        PRIORITY: critical=1, high=2, medium=3, low=4
 
         Respond ONLY with valid JSON, no markdown:
         { "units_required": ["unit1", "unit2"], "priority": 1 }
@@ -51,14 +39,11 @@ public class DispatchAgent
         _ai = ai; _logger = logger;
     }
 
-    public async Task<(DispatchRecommendation Recommendation, AgentStep Step)> RecommendAsync(
-        string context)
+    public async Task<(DispatchRecommendation Recommendation, AgentStep Step)> RecommendAsync(string context)
     {
         var sw = Stopwatch.StartNew();
-        DispatchRecommendation rec;
-
-        // Always compute rule-based first as safety net
         var ruleRec = FallbackDispatch(context);
+        DispatchRecommendation rec;
 
         try
         {
@@ -70,34 +55,28 @@ public class DispatchAgent
 
             if (aiRec == null || aiRec.UnitsRequired == null || aiRec.UnitsRequired.Count == 0)
             {
-                _logger.LogWarning("AI returned empty dispatch — using rule-based fallback");
                 rec = ruleRec;
             }
             else
             {
-                // Merge: take AI units but add any critical units the rules say must be there
                 var merged = new HashSet<string>(aiRec.UnitsRequired, StringComparer.OrdinalIgnoreCase);
-                foreach (var unit in ruleRec.UnitsRequired)
-                    merged.Add(unit);
-
+                foreach (var u in ruleRec.UnitsRequired) merged.Add(u);
                 rec = new DispatchRecommendation
                 {
                     UnitsRequired = merged.ToList(),
-                    // Use whichever priority is MORE urgent (lower number)
-                    Priority = Math.Min(aiRec.Priority, ruleRec.Priority)
+                    Priority = Math.Min(aiRec.Priority > 0 ? aiRec.Priority : 4,
+                                        ruleRec.Priority > 0 ? ruleRec.Priority : 4)
                 };
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "DispatchAgent AI unavailable — using rule-based dispatch");
+            _logger.LogWarning(ex, "DispatchAgent AI unavailable — using rule-based");
             sw.Stop();
             rec = ruleRec;
         }
 
-        // Final safety net — should never happen but just in case
-        if (rec.UnitsRequired == null || rec.UnitsRequired.Count == 0)
-            rec = ruleRec;
+        if (rec.UnitsRequired == null || rec.UnitsRequired.Count == 0) rec = ruleRec;
 
         return (rec, new AgentStep
         {
@@ -107,66 +86,91 @@ public class DispatchAgent
         });
     }
 
-    // ── Rule-based dispatch — always runs as baseline ─────────────────────────
-
     public static DispatchRecommendation FallbackDispatch(string context)
     {
         var c = context.ToLower();
         var units = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // ── Units by incident type ────────────────────────────────────────────
-        if (c.Contains("fire"))
+        bool isAccident  = ContainsAny(c, "accident", "crash", "collision", "car crash", "pileup");
+        bool isFire      = ContainsAny(c, "fire", "flame", "burning", "blaze", "arson");
+        bool isExplosion = ContainsAny(c, "explosion", "explode", "blast", "bomb", "detonation");
+        bool isMedical   = ContainsAny(c, "medical", "heart attack", "cardiac", "injured",
+                                          "injuries", "unconscious", "bleeding", "not breathing",
+                                          "seizure", "stroke", "hurt", "wounded");
+        bool isCrime     = ContainsAny(c, "crime", "robbery", "shooting", "assault", "murder",
+                                          "gun", "knife", "attack", "theft", "armed");
+        bool isFlood     = ContainsAny(c, "flood", "flooding", "overflowed", "flash flood",
+                                          "submerged", "water level", "river burst");
+        bool isEarthquake = ContainsAny(c, "earthquake", "tremor", "seismic", "quake", "ground shaking");
+        bool isRiot      = ContainsAny(c, "riot", "looting", "civil unrest", "mob", "crowd violence");
+        bool isHazard    = ContainsAny(c, "gas leak", "chemical", "toxic", "power line", "hazardous");
+        bool isMissing   = ContainsAny(c, "missing", "lost child", "disappeared");
+
+        bool onRoad      = ContainsAny(c, "highway", "motorway", "traffic", "junction", "lane");
+        bool hasFlames   = ContainsAny(c, "flame", "flaming", "on fire", "in flames", "burning");
+        bool hasInjured  = ContainsAny(c, "injur", "hurt", "wounded", "bleeding", "unconscious");
+        bool isCritical  = ContainsAny(c, "critical", "many people", "urgent", "trapped", "mass",
+                                          "dozens", "50", "100");
+
+        if (isAccident)
         {
-            units.Add("fire");
+            units.Add("police"); units.Add("ambulance"); units.Add("tow_truck");
+            if (onRoad) units.Add("traffic_police");
+            if (hasFlames) units.Add("fire");
+        }
+        if (isFire)
+        {
+            units.Add("fire"); units.Add("ambulance");
+            if (onRoad) { units.Add("traffic_police"); units.Add("tow_truck"); }
+            if (isCritical) units.Add("police");
+        }
+        if (isExplosion)
+        {
+            units.Add("fire"); units.Add("ambulance");
+            units.Add("police"); units.Add("bomb_squad"); units.Add("hazmat");
+        }
+        if (isMedical)
+        {
             units.Add("ambulance");
+            if (isCritical) units.Add("police");
         }
-        if (c.Contains("medical") || ContainsAny(c, "heart attack", "cardiac", "injury",
-            "injured", "injuries", "bleeding", "unconscious", "not breathing", "seizure",
-            "stroke", "overdose", "hurt", "wounded"))
-        {
-            units.Add("ambulance");
-        }
-        if (c.Contains("accident") || ContainsAny(c, "crash", "collision", "highway",
-            "vehicle accident", "car crash"))
+        if (isCrime)
         {
             units.Add("police");
-            units.Add("ambulance");
+            if (hasInjured) units.Add("ambulance");
         }
-        if (c.Contains("crime") || ContainsAny(c, "robbery", "shooting", "assault",
-            "murder", "theft", "gun", "knife", "attack"))
+        if (isFlood)
         {
-            units.Add("police");
+            units.Add("rescue"); units.Add("utility");
+            units.Add("ambulance"); units.Add("police");
+            if (isCritical) units.Add("coast_guard");
         }
-        if (c.Contains("hazard") || ContainsAny(c, "gas leak", "chemical", "flood",
-            "toxic", "spill", "power line"))
+        if (isEarthquake)
         {
-            units.Add("utility");
-            units.Add("fire");
+            units.Add("rescue"); units.Add("ambulance");
+            units.Add("fire"); units.Add("police"); units.Add("utility");
         }
-
-        // ── Additional units based on context ─────────────────────────────────
-        if (ContainsAny(c, "flame", "flaming", "on fire", "burning", "explosion"))
-            units.Add("fire");
-
-        if (ContainsAny(c, "critical", "high", "many people", "mass", "50", "100",
-                           "urgent", "immediately", "several injured"))
-            units.Add("police");
-
-        // Always send at least police
-        if (units.Count == 0)
-            units.Add("police");
-
-        // ── Priority by severity ──────────────────────────────────────────────
-        int priority = c.Contains("critical") ? 1
-                     : c.Contains("high")     ? 2
-                     : c.Contains("medium")   ? 3
-                     : 4;
-
-        return new DispatchRecommendation
+        if (isRiot)
         {
-            UnitsRequired = units.ToList(),
-            Priority      = priority
-        };
+            units.Add("police"); units.Add("riot_control"); units.Add("ambulance");
+            if (isCritical) units.Add("national_guard");
+        }
+        if (isHazard)
+        {
+            units.Add("utility"); units.Add("fire");
+            if (c.Contains("chemical") || c.Contains("toxic")) units.Add("hazmat");
+        }
+        if (isMissing) units.Add("police");
+
+        if (ContainsAny(c, "traffic jam", "blocked", "congestion")) units.Add("traffic_police");
+        if (units.Count == 0) units.Add("police");
+
+        int priority = isCritical ? 1
+            : ContainsAny(c, "high", "injured", "serious", "severe", "flood", "earthquake", "riot") ? 2
+            : ContainsAny(c, "medium", "possible", "minor") ? 3
+            : 4;
+
+        return new DispatchRecommendation { UnitsRequired = units.ToList(), Priority = priority };
     }
 
     private static bool ContainsAny(string text, params string[] keywords)
