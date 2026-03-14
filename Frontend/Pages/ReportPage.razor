@@ -80,7 +80,7 @@ else
     }
 
     <!-- ── Audio Panel ────────────────────────────────────────────────── -->
-    @if (ActiveTab == "Audio")
+    @* @if (ActiveTab == "Audio")
     {
         <div class="panel">
             <label class="field-label">Voice Report</label>
@@ -96,7 +96,53 @@ else
                 @if (IsLoading) { <span class="spinner"></span> } Transcribe & Submit
             </button>
         </div>
+    } *@
+    @if (ActiveTab == "Audio")
+    {
+        <div class="panel">
+            <label class="field-label">Voice Report</label>
+
+            <div class="audio-zone">
+                <p class="audio-note">Record audio or paste base64-encoded WAV audio below:</p>
+
+                <div class="record-controls">
+                    <button class="record-btn" @onclick="StartRecording" disabled="@IsRecording">
+                        🎤 Record
+                    </button>
+
+                    <button class="stop-btn" @onclick="StopRecording" disabled="@(!IsRecording)">
+                        ⏹ Stop
+                    </button>
+                </div>
+
+                <textarea class="text-input"
+                        rows="3"
+                        placeholder="Base64 audio will appear here…"
+                        @bind="AudioBase64"
+                        @bind:event="oninput">
+                </textarea>
+
+                @if (!string.IsNullOrEmpty(AudioBase64))
+                {
+                    <audio controls src="data:audio/wav;base64,@AudioBase64"></audio>
+                }
+            </div>
+
+            <LocationRow @bind-Lat="UserLat" @bind-Lon="UserLon" />
+
+            <button class="submit-btn"
+                    @onclick="SubmitAudio"
+                    disabled="@(IsLoading || string.IsNullOrEmpty(AudioBase64))">
+                @if (IsLoading)
+                {
+                    <span class="spinner"></span>
+                }
+                Transcribe & Submit
+            </button>
+        </div>
     }
+
+    @inject IJSRuntime JS
 
     <!-- ── Error ──────────────────────────────────────────────────────── -->
     @if (ErrorMsg != null)
@@ -133,6 +179,38 @@ else
     double? UserLat, UserLon;
     IncidentReportViewModel? Analysis;
 
+    bool IsRecording = false;
+
+    async Task StartRecording()
+    {
+        IsRecording = true;
+        await JS.InvokeVoidAsync("audioRecorder.start");
+    }
+
+    async Task StopRecording()
+    {
+        IsRecording = false;
+
+        AudioBase64 = await JS.InvokeAsync<string>("audioRecorder.stop");
+
+        StateHasChanged();
+    }
+
+    async Task SubmitAudio()
+    {
+        IsLoading = true;
+
+        await RunSubmit(new SubmitReportRequest
+        {
+            InputType   = "audio",
+            Base64Audio = AudioBase64,
+            MimeType    = "audio/wav",
+            Lat = UserLat, Lon = UserLon
+        });
+
+        IsLoading = false;
+    }
+
     static string TabIcon(string t) => t switch { "Text" => "📝", "Image" => "🖼", _ => "🎙" };
 
     protected override void OnInitialized()
@@ -168,7 +246,7 @@ else
         });
     }
 
-    async Task SubmitAudio()
+    @* async Task SubmitAudio()
     {
         await RunSubmit(new SubmitReportRequest
         {
@@ -177,7 +255,7 @@ else
             MimeType    = "audio/wav",
             Lat = UserLat, Lon = UserLon
         });
-    }
+    } *@
 
     async Task RunSubmit(SubmitReportRequest req)
     {

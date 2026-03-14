@@ -62,7 +62,10 @@ public class ReportsController : ControllerBase
                 Location    = location,
                 Lat         = req.Lat ?? analysis.LocationData.Lat,
                 Lon         = req.Lon ?? analysis.LocationData.Lon,
-                SubmittedAt = DateTime.UtcNow
+                SubmittedAt = DateTime.UtcNow,
+                UploadedImage = req.Base64Image,
+                UploadedMimeType = req.MimeType,
+                UploadedAudio = req.Base64Audio
             };
 
             var reportId = await _storage.SaveReportAsync(stored, analysis);

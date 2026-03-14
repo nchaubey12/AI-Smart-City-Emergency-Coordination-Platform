@@ -64,6 +64,14 @@ public class StoredReport
     public bool IsDuplicate { get; set; } = false;
     [JsonPropertyName("duplicateOfKey")]
     public string? DuplicateOfKey { get; set; }
+    [JsonPropertyName("uploadedimage")]
+    public string UploadedImage { get; set; } = string.Empty;
+    [JsonPropertyName("uploadedmimetype")]
+    public string UploadedMimeType { get; set; } = string.Empty;
+    
+    [JsonPropertyName("uploadedaudio")]
+    public string UploadedAudio { get; set; } = string.Empty;
+    
 }
 
 public class AggregatedIncident
