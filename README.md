@@ -9,7 +9,7 @@ Built for the **Microsoft AI Dev Days Hackathon** — an end-to-end AI pipeline 
 [![Azure Maps](https://img.shields.io/badge/Azure-Maps-0078D4?style=flat&logo=microsoft-azure)](https://azure.microsoft.com/en-us/products/azure-maps)
 [![Azure Service Bus](https://img.shields.io/badge/Azure-Service%20Bus-0078D4?style=flat&logo=microsoft-azure)](https://azure.microsoft.com/en-us/products/service-bus)
 [![Blazor](https://img.shields.io/badge/Blazor-WebAssembly-512BD4?style=flat&logo=blazor)](https://dotnet.microsoft.com/en-us/apps/aspnet/web-apps/blazor)
-[![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat&logo=dotnet)](https://dotnet.microsoft.com)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?style=flat&logo=dotnet)](https://dotnet.microsoft.com)
 
 ---
 
