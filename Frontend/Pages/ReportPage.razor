@@ -97,11 +97,18 @@ else
                     </div>
                 }
 
+                @if (RecordingState == "converting")
+                {
+                    <div class="recording-indicator" style="background:#eff6ff;border-color:#bfdbfe">
+                        <span class="rec-dot" style="background:#3b82f6;animation:none"></span>
+                        <span class="rec-label" style="color:#1d4ed8">Converting to WAV…</span>
+                    </div>
+                }
+
                 <!-- Controls -->
                 <div class="record-controls">
                     @if (RecordingState == "idle")
                     {
-                        <!-- Only show Record when idle -->
                         <button class="record-btn" @onclick="StartRecording">
                             🎤 Start Recording
                         </button>
@@ -114,7 +121,6 @@ else
                     }
                     else if (RecordingState == "done" && !string.IsNullOrEmpty(AudioBase64))
                     {
-                        <!-- Show Re-record option once done -->
                         <button class="record-btn secondary" @onclick="ReRecord">
                             🔄 Re-record
                         </button>
@@ -206,9 +212,7 @@ else
 
     // ── Audio recording ───────────────────────────────────────────────────────
 
-    static string TabIcon(string t) => t switch { "Text" => "📝", "Image" => "🖼", _ => "🎙" };
-
-    protected override void OnInitialized()
+    async Task StartRecording()
     {
         try
         {
