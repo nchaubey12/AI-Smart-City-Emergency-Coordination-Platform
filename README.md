@@ -4,6 +4,8 @@
 
 Built for the **Microsoft AI Dev Days Hackathon** — an end-to-end AI pipeline that receives emergency reports in any format, classifies the incident, scores severity, and recommends dispatch — with human oversight at every critical decision.
 
+## 🎥 Demo: [AI Smart City Emergency Coordination Platform](https://youtu.be/iXBSRSyHBnM)
+
 [![Azure OpenAI](https://img.shields.io/badge/Azure-OpenAI%20GPT--4o-0078D4?style=flat&logo=microsoft-azure)](https://azure.microsoft.com/en-us/products/ai-services/openai-service)
 [![Azure Speech](https://img.shields.io/badge/Azure-AI%20Speech-0078D4?style=flat&logo=microsoft-azure)](https://azure.microsoft.com/en-us/products/ai-services/ai-speech)
 [![Azure Maps](https://img.shields.io/badge/Azure-Maps-0078D4?style=flat&logo=microsoft-azure)](https://azure.microsoft.com/en-us/products/azure-maps)
