@@ -125,7 +125,7 @@ else
                 @if (RecordingState == "done" && !string.IsNullOrEmpty(AudioBase64))
                 {
                     <div class="audio-preview">
-                        <p class="audio-ready">✅ Recording ready</p>
+                        <p class="audio-ready">✅ Recording ready (WAV · 16 kHz mono)</p>
                         <audio controls src="data:audio/wav;base64,@AudioBase64" class="audio-player"></audio>
                     </div>
                 }
@@ -144,7 +144,7 @@ else
 
             <LocationRow @bind-Lat="UserLat" @bind-Lon="UserLon" />
             <button class="submit-btn" @onclick="SubmitAudio"
-                    disabled="@(IsLoading || string.IsNullOrEmpty(AudioBase64) || RecordingState == "recording" || RecordingState == "paused")">
+                    disabled="@(IsLoading || string.IsNullOrEmpty(AudioBase64) || RecordingState == "recording" || RecordingState == "converting")">
                 @if (IsLoading) { <span class="spinner"></span> } Transcribe & Submit
             </button>
         </div>
@@ -179,13 +179,19 @@ else
 @code {
     string ActiveTab = "Text";
     string TextInput = "", AudioBase64 = "";
+
+    // FIX: AudioMimeType is now always "audio/wav" — the JS converter guarantees this.
+    // Kept as a field so SubmitAudio can pass it through without hardcoding the string
+    // in two places, but it never changes at runtime.
+    string AudioMimeType = "audio/wav";
+
     string? ImagePreview, ErrorMsg, SubmittedReportId;
     IBrowserFile? UploadedFile;
     bool IsLoading, UserThankYou;
     double? UserLat, UserLon;
     IncidentReportViewModel? Analysis;
 
-    // Recording state: idle | recording | paused | done
+    // Recording state: idle | recording | converting | done
     string RecordingState = "idle";
     string RecordingTime = "0:00";
     System.Threading.Timer? _timer;
@@ -200,7 +206,9 @@ else
 
     // ── Audio recording ───────────────────────────────────────────────────────
 
-    async Task StartRecording()
+    static string TabIcon(string t) => t switch { "Text" => "📝", "Image" => "🖼", _ => "🎙" };
+
+    protected override void OnInitialized()
     {
         try
         {
@@ -221,26 +229,32 @@ else
         }
     }
 
-    async Task PauseRecording()
-    {
-        await JS.InvokeVoidAsync("audioRecorder.pause");
-        RecordingState = "paused";
-        _timer?.Change(Timeout.Infinite, Timeout.Infinite);
-    }
-
-    async Task ResumeRecording()
-    {
-        await JS.InvokeVoidAsync("audioRecorder.resume");
-        RecordingState = "recording";
-        _timer?.Change(1000, 1000);
-    }
-
     async Task StopRecording()
     {
-        _timer?.Dispose(); _timer = null;
+        _timer?.Dispose();
+        _timer = null;
+
+        // FIX: show "converting" state while JS does the webm→WAV conversion
+        // so the user sees feedback instead of a frozen UI.
+        RecordingState = "converting";
+        StateHasChanged();
+
         try
         {
-            AudioBase64 = await JS.InvokeAsync<string>("audioRecorder.stop");
+            // audioRecorder.stop() now always returns { base64: "...", mimeType: "audio/wav" }
+            // The JS side converts the raw browser recording to 16-kHz mono WAV before resolving.
+            var json = await JS.InvokeAsync<string>("audioRecorder.stop");
+
+            var result = System.Text.Json.JsonSerializer.Deserialize<AudioRecordingResult>(
+                json,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+            );
+
+            if (result is null || string.IsNullOrWhiteSpace(result.Base64))
+                throw new InvalidOperationException("Recorder returned empty audio data.");
+
+            AudioBase64   = result.Base64;
+            AudioMimeType = result.MimeType; // will always be "audio/wav" from the new JS
             RecordingState = "done";
         }
         catch (Exception ex)
@@ -248,12 +262,17 @@ else
             ErrorMsg = $"Could not save recording: {ex.Message}";
             RecordingState = "idle";
         }
+
         StateHasChanged();
     }
 
+    // Matches the JSON shape returned by audioRecorder.stop()
+    private record AudioRecordingResult(string Base64, string MimeType);
+
     void ReRecord()
     {
-        AudioBase64 = "";
+        AudioBase64    = "";
+        AudioMimeType  = "audio/wav";
         RecordingState = "idle";
         _seconds = 0;
         RecordingTime = "0:00";
@@ -291,11 +310,13 @@ else
 
     async Task SubmitAudio()
     {
+        // FIX: AudioBase64 is now guaranteed to be a plain base64 WAV string (not a JSON wrapper).
+        // AudioMimeType is always "audio/wav". Both are set correctly in StopRecording().
         await RunSubmit(new SubmitReportRequest
         {
             InputType   = "audio",
             Base64Audio = AudioBase64,
-            MimeType    = "audio/wav",
+            MimeType    = AudioMimeType,   // "audio/wav"
             Lat = UserLat, Lon = UserLon
         });
     }
@@ -339,6 +360,7 @@ else
         TextInput = ""; AudioBase64 = ""; ImagePreview = null;
         UploadedFile = null; UserThankYou = false; Analysis = null;
         SubmittedReportId = null; RecordingState = "idle";
+        AudioMimeType = "audio/wav";
         _seconds = 0; RecordingTime = "0:00";
         _timer?.Dispose(); _timer = null;
     }
@@ -387,13 +409,10 @@ else
     .recording-indicator { display:flex; align-items:center; gap:0.5rem;
         background:#fff0f2; border:1px solid #ffb3be; border-radius:8px;
         padding:0.55rem 0.9rem; }
-    .recording-indicator.paused { background:#fef9c3; border-color:#fcd34d; }
     .rec-dot { width:10px; height:10px; border-radius:50%; background:#dc2626;
         animation:blink-rec 0.8s ease-in-out infinite; flex-shrink:0; }
-    .rec-dot.paused-dot { background:#d97706; animation:none; }
     @@keyframes blink-rec { 0%,100%{opacity:1} 50%{opacity:0.1} }
     .rec-label { font-size:0.82rem; font-weight:700; color:#991b1b; flex:1; }
-    .recording-indicator.paused .rec-label { color:#92400e; }
     .rec-timer { font-size:0.82rem; font-weight:700; font-variant-numeric:tabular-nums;
         color:#6b7280; font-family:monospace; }
 
@@ -403,12 +422,6 @@ else
     .record-btn:hover { background:#b91c1c; }
     .record-btn.secondary { background:#6b7280; }
     .record-btn.secondary:hover { background:#4b5563; }
-    .pause-btn { background:#d97706; color:white; border:none; border-radius:8px;
-        padding:0.55rem 1.1rem; font-size:0.88rem; font-weight:600; cursor:pointer; }
-    .pause-btn:hover { background:#b45309; }
-    .resume-btn { background:#16a34a; color:white; border:none; border-radius:8px;
-        padding:0.55rem 1.1rem; font-size:0.88rem; font-weight:600; cursor:pointer; }
-    .resume-btn:hover { background:#15803d; }
     .stop-btn { background:#374151; color:white; border:none; border-radius:8px;
         padding:0.55rem 1.1rem; font-size:0.88rem; font-weight:600; cursor:pointer; }
     .stop-btn:hover { background:#1f2937; }
