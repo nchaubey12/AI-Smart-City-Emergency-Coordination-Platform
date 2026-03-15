@@ -140,7 +140,7 @@ EmergencyPlatform/
 ## 🚀 Quick Start
 
 ### Prerequisites
-- .NET 8 SDK
+- .NET 10.0 SDK
 - Azure subscription with:
   - Azure OpenAI (GPT-4o deployment)
   - Azure AI Speech
