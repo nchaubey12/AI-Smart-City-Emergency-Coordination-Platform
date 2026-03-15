@@ -95,8 +95,10 @@ public class AggregatedIncidentSummary
 
     // ── Computed helpers ──────────────────────────────────────────────────────
 
-    public string DisplaySeverity     => !string.IsNullOrEmpty(AdminSeverity)      ? AdminSeverity      : SeverityLevel;
-    public string DisplayIncidentType => !string.IsNullOrEmpty(AdminIncidentType)  ? AdminIncidentType  : IncidentType;
+    // Normalize to lowercase so CSS color mapping is case-insensitive.
+    // The AI may return "Critical", "HIGH", etc. — this guarantees the switch always matches.
+    public string DisplaySeverity     => (!string.IsNullOrEmpty(AdminSeverity)     ? AdminSeverity     : SeverityLevel).Trim().ToLower();
+    public string DisplayIncidentType => (!string.IsNullOrEmpty(AdminIncidentType) ? AdminIncidentType : IncidentType).Trim().ToLower();
 
     public string SeverityColor => DisplaySeverity switch
     {
@@ -170,7 +172,7 @@ public class AggregatedIncidentDetail
     [JsonPropertyName("lastReportedAt")]    public DateTime LastReportedAt  { get; set; }
     [JsonPropertyName("reports")]           public List<IndividualReport> Reports { get; set; } = new();
 
-    public string IncidentIcon => (AdminIncidentType ?? IncidentType) switch
+    public string IncidentIcon => (AdminIncidentType ?? IncidentType).Trim().ToLower() switch
     {
         "fire"       => "🔥", "accident"       => "🚗",
         "medical"    => "🚑", "crime"          => "🚔",
@@ -213,8 +215,8 @@ public class MarkDuplicateRequest
 // Slim model for the duplicate dropdown
 public class OpenIncidentOption
 {
-    [JsonPropertyName("incidentKey")]          public string IncidentKey          { get; set; } = string.Empty;
+    [JsonPropertyName("incidentKey")]           public string IncidentKey          { get; set; } = string.Empty;
     [JsonPropertyName("effectiveIncidentType")] public string EffectiveIncidentType { get; set; } = string.Empty;
-    [JsonPropertyName("location")]             public string Location             { get; set; } = string.Empty;
-    [JsonPropertyName("status")]               public string Status               { get; set; } = string.Empty;
+    [JsonPropertyName("location")]              public string Location             { get; set; } = string.Empty;
+    [JsonPropertyName("status")]                public string Status               { get; set; } = string.Empty;
 }

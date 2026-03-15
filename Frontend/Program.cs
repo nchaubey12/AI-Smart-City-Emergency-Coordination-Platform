@@ -11,11 +11,11 @@ builder.Services.AddScoped(sp => new HttpClient
     BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5000/")
 });
 
+// EmergencyApiService is used by the report submission page (api/emergency/...)
+// AuthService and ReportApiService are used by the dashboard (api/reports/...)
+// All three must be registered.
 builder.Services.AddScoped<EmergencyApiService>();
-
-// ── CHANGE Singleton → Scoped for both ───────────────────────────────────────
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ReportApiService>();
-// ─────────────────────────────────────────────────────────────────────────────
 
 await builder.Build().RunAsync();
