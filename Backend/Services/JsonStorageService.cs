@@ -94,25 +94,39 @@ public class JsonStorageService
             var store = await LoadReportsInternalAsync();
             report.AnalysisResult = analysis;
 
+            var locationKey = BuildLocationKey(report.Lat, report.Lon, report.Location);
             var incidentKey = BuildIncidentKey(analysis.IncidentType, report.Location, report.Lat, report.Lon);
             report.IncidentKey = incidentKey;
 
-            // KEY RULE: only merge into an incident that is still OPEN.
-            // If the matching incident is accepted or resolved, always create a new row.
+            // KEY RULE: cluster into an existing open incident at the same location,
+            // regardless of incident type. Only separate into a new row when every
+            // incident at this location is already accepted or resolved.
             var existing = store.Incidents.FirstOrDefault(i =>
-                i.IncidentKey == incidentKey && i.Status == "open");
+                i.Status == "open" && BuildLocationKey(i.Lat, i.Lon, i.Location) == locationKey);
 
             if (existing != null)
             {
                 existing.ReportCount++;
                 existing.LastReportedAt = DateTime.UtcNow;
                 existing.Reports.Add(report);
+                report.IncidentKey = existing.IncidentKey;
+
+                // Append new incident type if different (e.g. "fire" -> "fire, flood")
+                existing.AddIncidentType(analysis.IncidentType);
+
+                // Merge any new dispatch units from this report's analysis
+                foreach (var unit in analysis.DispatchRecommendation.UnitsRequired)
+                    if (!existing.DispatchUnits.Contains(unit, StringComparer.OrdinalIgnoreCase))
+                        existing.DispatchUnits.Add(unit);
+
+                // Upgrade severity if this report is worse
                 if (SeverityRank(analysis.SeverityLevel) > SeverityRank(existing.SeverityLevel))
                     existing.SeverityLevel = analysis.SeverityLevel;
             }
             else
             {
-                // Create a fresh incident (new key with timestamp suffix if needed to avoid collision)
+                // No open incident at this location — create a fresh one.
+                // Append timestamp suffix if the base key already exists (e.g. after resolve).
                 var newKey = incidentKey;
                 if (store.Incidents.Any(i => i.IncidentKey == newKey))
                     newKey = $"{incidentKey}:{DateTime.UtcNow.Ticks}";
@@ -284,6 +298,20 @@ public class JsonStorageService
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    // Location-only key used for clustering — incident type is intentionally excluded
+    // so that a flood and a fire at the same coordinates merge into one open row.
+    private static string BuildLocationKey(double? lat, double? lon, string location)
+    {
+        if (lat.HasValue && lon.HasValue)
+        {
+            var latGrid = Math.Round(lat.Value, 3);
+            var lonGrid = Math.Round(lon.Value, 3);
+            return $"{latGrid}:{lonGrid}";
+        }
+        var locKey = location.ToLower().Trim().Replace(" ", "").Replace(",", "").Replace(".", "");
+        return locKey;
+    }
 
     private static string BuildIncidentKey(string incidentType, string location,
         double? lat, double? lon)

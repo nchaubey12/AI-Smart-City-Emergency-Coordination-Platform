@@ -80,6 +80,8 @@ public class AggregatedIncident
     [JsonPropertyName("incidentKey")]
     public string IncidentKey { get; set; } = string.Empty;
 
+    // Comma-separated when multiple types are present at the same location,
+    // e.g. "fire, flood". Use AddIncidentType() to append without duplicates.
     [JsonPropertyName("incidentType")]
     public string IncidentType { get; set; } = string.Empty;
 
@@ -88,6 +90,24 @@ public class AggregatedIncident
 
     [JsonIgnore]
     public string EffectiveIncidentType => AdminIncidentType ?? IncidentType;
+
+    // Returns each individual type in IncidentType as a list.
+    [JsonIgnore]
+    public List<string> IncidentTypes =>
+        IncidentType.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .ToList();
+
+    // Appends newType to IncidentType if it isn't already present (case-insensitive).
+    public void AddIncidentType(string newType)
+    {
+        if (string.IsNullOrWhiteSpace(newType)) return;
+        var types = IncidentTypes;
+        if (!types.Any(t => t.Equals(newType.Trim(), StringComparison.OrdinalIgnoreCase)))
+        {
+            types.Add(newType.Trim().ToLower());
+            IncidentType = string.Join(", ", types);
+        }
+    }
 
     [JsonPropertyName("severityLevel")]
     public string SeverityLevel { get; set; } = string.Empty;
@@ -231,7 +251,7 @@ public class ResolveIncidentRequest
 // Admin marks an orphan report as duplicate of an existing incident
 public class MarkDuplicateRequest
 {
-    public string ReportId      { get; set; } = string.Empty;  // orphan report id
-    public string TargetKey     { get; set; } = string.Empty;  // existing incident to merge into
-    public string AdminName     { get; set; } = string.Empty;
+    public string ReportId  { get; set; } = string.Empty;  // orphan report id
+    public string TargetKey { get; set; } = string.Empty;  // existing incident to merge into
+    public string AdminName { get; set; } = string.Empty;
 }

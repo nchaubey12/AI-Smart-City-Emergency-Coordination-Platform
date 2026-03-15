@@ -35,8 +35,9 @@ public class IncidentReportViewModel
     public List<AgentStepViewModel> AgentTrace { get; set; } = new();
 
     // ── UI helpers ────────────────────────────────────────────────────────
+    // Normalize to lowercase so switches always match regardless of AI casing.
 
-    public string SeverityColor => SeverityLevel switch
+    public string SeverityColor => SeverityLevel.Trim().ToLower() switch
     {
         "critical" => "#ff2d55",
         "high"     => "#ff9500",
@@ -45,14 +46,19 @@ public class IncidentReportViewModel
         _          => "#636366"
     };
 
-    public string IncidentIcon => IncidentType switch
+    public string IncidentIcon => IncidentType.Trim().ToLower() switch
     {
-        "fire"     => "🔥",
-        "accident" => "🚗",
-        "medical"  => "🚑",
-        "crime"    => "🚔",
-        "hazard"   => "⚠️",
-        _          => "❓"
+        "fire"           => "🔥",
+        "accident"       => "🚗",
+        "medical"        => "🚑",
+        "crime"          => "🚔",
+        "hazard"         => "⚠️",
+        "flood"          => "🌊",
+        "earthquake"     => "🏚️",
+        "riot"           => "👥",
+        "explosion"      => "💥",
+        "missing_person" => "🔍",
+        _                => "❓"
     };
 
     public string PriorityLabel => DispatchRecommendation.Priority switch
