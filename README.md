@@ -16,13 +16,13 @@ Built for the **Microsoft AI Dev Days Hackathon** — an end-to-end AI pipeline 
 ## 📸 Screenshots
 
 ### Login Page
-<img src="docs/screenshots/screenshot_01_login.png" width="700"/>
+<img src="docs/screenshots/screenshot_01_login.png" width="900"/>
 
 ### Submit Incident Report — Text
-<img src="docs/screenshots/screenshot_02_text_report.png" width="700"/>
+<img src="docs/screenshots/screenshot_02_text_report.png" width="900"/>
 
 ### Submit Incident Report — Image
-<img src="docs/screenshots/screenshot_03_image_report.png" width="700"/>
+<img src="docs/screenshots/screenshot_03_image_report.png" width="900"/>
 
 ### Admin Dashboard — Live Incident Management
 <img src="docs/screenshots/screenshot_04_admin_dashboard.png" width="900"/>
