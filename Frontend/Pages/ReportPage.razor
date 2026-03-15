@@ -4,8 +4,9 @@
 @inject AuthService Auth
 @inject ReportApiService ReportApi
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
-<PageTitle>Submit Incident Report</PageTitle>
+<PageTitle>Incident Report</PageTitle>
 
 @if (!Auth.IsLoggedIn)
 {
@@ -80,69 +81,74 @@ else
     }
 
     <!-- ── Audio Panel ────────────────────────────────────────────────── -->
-    @* @if (ActiveTab == "Audio")
-    {
-        <div class="panel">
-            <label class="field-label">Voice Report</label>
-            <div class="audio-zone">
-                <p class="audio-note">Paste base64-encoded WAV audio below:</p>
-                <textarea class="text-input" rows="3"
-                          placeholder="Paste base64 audio string here…"
-                          @bind="AudioBase64" @bind:event="oninput"></textarea>
-            </div>
-            <LocationRow @bind-Lat="UserLat" @bind-Lon="UserLon" />
-            <button class="submit-btn" @onclick="SubmitAudio"
-                    disabled="@(IsLoading || string.IsNullOrEmpty(AudioBase64))">
-                @if (IsLoading) { <span class="spinner"></span> } Transcribe & Submit
-            </button>
-        </div>
-    } *@
     @if (ActiveTab == "Audio")
     {
         <div class="panel">
             <label class="field-label">Voice Report</label>
-
             <div class="audio-zone">
-                <p class="audio-note">Record audio or paste base64-encoded WAV audio below:</p>
 
+                <!-- Recording state indicator -->
+                @if (RecordingState == "recording")
+                {
+                    <div class="recording-indicator">
+                        <span class="rec-dot"></span>
+                        <span class="rec-label">Recording…</span>
+                        <span class="rec-timer">@RecordingTime</span>
+                    </div>
+                }
+
+                <!-- Controls -->
                 <div class="record-controls">
-                    <button class="record-btn" @onclick="StartRecording" disabled="@IsRecording">
-                        🎤 Record
-                    </button>
-
-                    <button class="stop-btn" @onclick="StopRecording" disabled="@(!IsRecording)">
-                        ⏹ Stop
-                    </button>
+                    @if (RecordingState == "idle")
+                    {
+                        <!-- Only show Record when idle -->
+                        <button class="record-btn" @onclick="StartRecording">
+                            🎤 Start Recording
+                        </button>
+                    }
+                    else if (RecordingState == "recording")
+                    {
+                        <button class="stop-btn" @onclick="StopRecording">
+                            ⏹ Stop & Save
+                        </button>
+                    }
+                    else if (RecordingState == "done" && !string.IsNullOrEmpty(AudioBase64))
+                    {
+                        <!-- Show Re-record option once done -->
+                        <button class="record-btn secondary" @onclick="ReRecord">
+                            🔄 Re-record
+                        </button>
+                    }
                 </div>
 
-                <textarea class="text-input"
-                        rows="3"
-                        placeholder="Base64 audio will appear here…"
-                        @bind="AudioBase64"
-                        @bind:event="oninput">
-                </textarea>
-
-                @if (!string.IsNullOrEmpty(AudioBase64))
+                <!-- Playback once recorded -->
+                @if (RecordingState == "done" && !string.IsNullOrEmpty(AudioBase64))
                 {
-                    <audio controls src="data:audio/wav;base64,@AudioBase64"></audio>
+                    <div class="audio-preview">
+                        <p class="audio-ready">✅ Recording ready</p>
+                        <audio controls src="data:audio/wav;base64,@AudioBase64" class="audio-player"></audio>
+                    </div>
+                }
+
+                <!-- Manual paste fallback -->
+                @if (RecordingState == "idle")
+                {
+                    <details class="paste-fallback">
+                        <summary>Or paste base64 audio manually</summary>
+                        <textarea class="text-input" rows="3"
+                                  placeholder="Paste base64-encoded WAV audio string…"
+                                  @bind="AudioBase64" @bind:event="oninput"></textarea>
+                    </details>
                 }
             </div>
 
             <LocationRow @bind-Lat="UserLat" @bind-Lon="UserLon" />
-
-            <button class="submit-btn"
-                    @onclick="SubmitAudio"
-                    disabled="@(IsLoading || string.IsNullOrEmpty(AudioBase64))">
-                @if (IsLoading)
-                {
-                    <span class="spinner"></span>
-                }
-                Transcribe & Submit
+            <button class="submit-btn" @onclick="SubmitAudio"
+                    disabled="@(IsLoading || string.IsNullOrEmpty(AudioBase64) || RecordingState == "recording" || RecordingState == "paused")">
+                @if (IsLoading) { <span class="spinner"></span> } Transcribe & Submit
             </button>
         </div>
     }
-
-    @inject IJSRuntime JS
 
     <!-- ── Error ──────────────────────────────────────────────────────── -->
     @if (ErrorMsg != null)
@@ -179,37 +185,11 @@ else
     double? UserLat, UserLon;
     IncidentReportViewModel? Analysis;
 
-    bool IsRecording = false;
-
-    async Task StartRecording()
-    {
-        IsRecording = true;
-        await JS.InvokeVoidAsync("audioRecorder.start");
-    }
-
-    async Task StopRecording()
-    {
-        IsRecording = false;
-
-        AudioBase64 = await JS.InvokeAsync<string>("audioRecorder.stop");
-
-        StateHasChanged();
-    }
-
-    async Task SubmitAudio()
-    {
-        IsLoading = true;
-
-        await RunSubmit(new SubmitReportRequest
-        {
-            InputType   = "audio",
-            Base64Audio = AudioBase64,
-            MimeType    = "audio/wav",
-            Lat = UserLat, Lon = UserLon
-        });
-
-        IsLoading = false;
-    }
+    // Recording state: idle | recording | paused | done
+    string RecordingState = "idle";
+    string RecordingTime = "0:00";
+    System.Threading.Timer? _timer;
+    int _seconds = 0;
 
     static string TabIcon(string t) => t switch { "Text" => "📝", "Image" => "🖼", _ => "🎙" };
 
@@ -217,6 +197,69 @@ else
     {
         if (!Auth.IsLoggedIn) Nav.NavigateTo("/login");
     }
+
+    // ── Audio recording ───────────────────────────────────────────────────────
+
+    async Task StartRecording()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("audioRecorder.start");
+            RecordingState = "recording";
+            _seconds = 0;
+            RecordingTime = "0:00";
+            _timer = new System.Threading.Timer(_ =>
+            {
+                _seconds++;
+                RecordingTime = $"{_seconds / 60}:{(_seconds % 60):D2}";
+                InvokeAsync(StateHasChanged);
+            }, null, 1000, 1000);
+        }
+        catch (Exception ex)
+        {
+            ErrorMsg = $"Could not start recording: {ex.Message}";
+        }
+    }
+
+    async Task PauseRecording()
+    {
+        await JS.InvokeVoidAsync("audioRecorder.pause");
+        RecordingState = "paused";
+        _timer?.Change(Timeout.Infinite, Timeout.Infinite);
+    }
+
+    async Task ResumeRecording()
+    {
+        await JS.InvokeVoidAsync("audioRecorder.resume");
+        RecordingState = "recording";
+        _timer?.Change(1000, 1000);
+    }
+
+    async Task StopRecording()
+    {
+        _timer?.Dispose(); _timer = null;
+        try
+        {
+            AudioBase64 = await JS.InvokeAsync<string>("audioRecorder.stop");
+            RecordingState = "done";
+        }
+        catch (Exception ex)
+        {
+            ErrorMsg = $"Could not save recording: {ex.Message}";
+            RecordingState = "idle";
+        }
+        StateHasChanged();
+    }
+
+    void ReRecord()
+    {
+        AudioBase64 = "";
+        RecordingState = "idle";
+        _seconds = 0;
+        RecordingTime = "0:00";
+    }
+
+    // ── Submit handlers ───────────────────────────────────────────────────────
 
     async Task SubmitText()
     {
@@ -246,7 +289,7 @@ else
         });
     }
 
-    @* async Task SubmitAudio()
+    async Task SubmitAudio()
     {
         await RunSubmit(new SubmitReportRequest
         {
@@ -255,14 +298,14 @@ else
             MimeType    = "audio/wav",
             Lat = UserLat, Lon = UserLon
         });
-    } *@
+    }
 
     async Task RunSubmit(SubmitReportRequest req)
     {
-        IsLoading   = true;
-        ErrorMsg    = null;
+        IsLoading    = true;
+        ErrorMsg     = null;
         UserThankYou = false;
-        Analysis    = null;
+        Analysis     = null;
 
         req.UserId    = Auth.CurrentUser!.UserId;
         req.UserName  = Auth.CurrentUser.Name;
@@ -295,8 +338,12 @@ else
     {
         TextInput = ""; AudioBase64 = ""; ImagePreview = null;
         UploadedFile = null; UserThankYou = false; Analysis = null;
-        SubmittedReportId = null;
+        SubmittedReportId = null; RecordingState = "idle";
+        _seconds = 0; RecordingTime = "0:00";
+        _timer?.Dispose(); _timer = null;
     }
+
+    public void Dispose() { _timer?.Dispose(); }
 }
 
 <style>
@@ -332,9 +379,49 @@ else
     .drop-sub { font-size:0.78rem; }
     .preview-img { max-height:220px; max-width:100%; border-radius:8px; }
     .file-overlay { position:absolute; inset:0; opacity:0; cursor:pointer; }
-    .audio-zone { padding:0.5rem 0; }
-    .audio-note { font-size:0.83rem; color:#8e8e93; margin:0 0 0.5rem; }
 
+    /* ── Audio recording UI ──────────────────────────────────────────── */
+    .audio-zone { display:flex; flex-direction:column; gap:0.75rem; }
+    .audio-note { font-size:0.83rem; color:#8e8e93; margin:0; }
+
+    .recording-indicator { display:flex; align-items:center; gap:0.5rem;
+        background:#fff0f2; border:1px solid #ffb3be; border-radius:8px;
+        padding:0.55rem 0.9rem; }
+    .recording-indicator.paused { background:#fef9c3; border-color:#fcd34d; }
+    .rec-dot { width:10px; height:10px; border-radius:50%; background:#dc2626;
+        animation:blink-rec 0.8s ease-in-out infinite; flex-shrink:0; }
+    .rec-dot.paused-dot { background:#d97706; animation:none; }
+    @@keyframes blink-rec { 0%,100%{opacity:1} 50%{opacity:0.1} }
+    .rec-label { font-size:0.82rem; font-weight:700; color:#991b1b; flex:1; }
+    .recording-indicator.paused .rec-label { color:#92400e; }
+    .rec-timer { font-size:0.82rem; font-weight:700; font-variant-numeric:tabular-nums;
+        color:#6b7280; font-family:monospace; }
+
+    .record-controls { display:flex; gap:0.6rem; flex-wrap:wrap; }
+    .record-btn { background:#dc2626; color:white; border:none; border-radius:8px;
+        padding:0.55rem 1.1rem; font-size:0.88rem; font-weight:600; cursor:pointer; }
+    .record-btn:hover { background:#b91c1c; }
+    .record-btn.secondary { background:#6b7280; }
+    .record-btn.secondary:hover { background:#4b5563; }
+    .pause-btn { background:#d97706; color:white; border:none; border-radius:8px;
+        padding:0.55rem 1.1rem; font-size:0.88rem; font-weight:600; cursor:pointer; }
+    .pause-btn:hover { background:#b45309; }
+    .resume-btn { background:#16a34a; color:white; border:none; border-radius:8px;
+        padding:0.55rem 1.1rem; font-size:0.88rem; font-weight:600; cursor:pointer; }
+    .resume-btn:hover { background:#15803d; }
+    .stop-btn { background:#374151; color:white; border:none; border-radius:8px;
+        padding:0.55rem 1.1rem; font-size:0.88rem; font-weight:600; cursor:pointer; }
+    .stop-btn:hover { background:#1f2937; }
+
+    .audio-preview { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:0.75rem; }
+    .audio-ready { font-size:0.82rem; color:#16a34a; font-weight:600; margin:0 0 0.4rem; }
+    .audio-player { width:100%; height:40px; }
+
+    .paste-fallback { margin-top:0.25rem; }
+    .paste-fallback summary { font-size:0.78rem; color:#8e8e93; cursor:pointer; }
+    .paste-fallback summary:hover { color:#374151; }
+
+    /* ── Submit & common ─────────────────────────────────────────────── */
     .submit-btn { width:100%; margin-top:1rem; padding:0.85rem;
         background:#0a84ff; color:white; border:none; border-radius:12px;
         font-size:0.95rem; font-weight:700; cursor:pointer;
@@ -354,25 +441,4 @@ else
     .thankyou-card p { color:#636366; margin:0.3rem 0; line-height:1.6; }
     .report-ref { font-size:0.85rem; margin-top:0.75rem !important; }
     .report-ref strong { font-family:monospace; color:#1c1c1e; }
-    .record-controls{
-    display:flex;
-    gap:10px;
-    margin-bottom:10px;
-}
-
-.record-btn{
-    background:#e53935;
-    color:white;
-    padding:8px 16px;
-    border:none;
-    border-radius:6px;
-}
-
-.stop-btn{
-    background:#444;
-    color:white;
-    padding:8px 16px;
-    border:none;
-    border-radius:6px;
-}
 </style>
