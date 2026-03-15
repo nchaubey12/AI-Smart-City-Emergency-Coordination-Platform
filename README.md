@@ -203,7 +203,7 @@ cd Backend
 dotnet publish -c Release
 az webapp deploy --resource-group emergency-ai-rg \
   --name emergency-ai-api \
-  --src-path bin/Release/net8.0/publish
+  --src-path bin/Release/net10.0/publish
 ```
 
 ---
