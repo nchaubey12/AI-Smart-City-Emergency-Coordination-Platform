@@ -46,15 +46,19 @@ public class InputNormalizerAgent
         var (nlp, nlpStep) = await _nlp.AnalyzeAsync(req.Text);
         report.AgentTrace.Add(nlpStep);
 
-        // Step 2 – Severity consolidation
+        // Step 2 – Severity consolidation (full context so AI can make real decisions)
         var sevCtx = $"incident_type={nlp.IncidentType}, severity_hint={nlp.SeverityLevel}, "
-                   + $"people={nlp.PeopleInvolved}, hazards={nlp.Hazards}";
+                   + $"people={nlp.PeopleInvolved}, vehicles={nlp.VehiclesInvolved}, "
+                   + $"hazards={nlp.Hazards}, location={nlp.LocationDescription}, "
+                   + $"reasoning={nlp.ReasoningSummary}";
         var (sev, sevReason, sevStep) = await _severity.ClassifyAsync(sevCtx);
         report.AgentTrace.Add(sevStep);
 
-        // Step 3 – Dispatch
+        // Step 3 – Dispatch (hazards + visual cues feed keyword matching in FallbackDispatch)
         var dispCtx = $"incident_type={nlp.IncidentType}, severity={sev}, "
-                    + $"people={nlp.PeopleInvolved}, vehicles={nlp.VehiclesInvolved}";
+                    + $"people={nlp.PeopleInvolved}, vehicles={nlp.VehiclesInvolved}, "
+                    + $"hazards={nlp.Hazards}, location={nlp.LocationDescription}, "
+                    + $"reasoning={nlp.ReasoningSummary}";
         var (dispatch, dispStep) = await _dispatch.RecommendAsync(dispCtx);
         report.AgentTrace.Add(dispStep);
 
@@ -88,16 +92,20 @@ public class InputNormalizerAgent
         var (vis, visStep) = await _vision.AnalyzeAsync(req.Base64Image, req.MimeType);
         report.AgentTrace.Add(visStep);
 
-        // Step 2 – Severity
+        // Step 2 – Severity (full vision context so AI sees flames/smoke/people)
         var sevCtx = $"incident_type={vis.IncidentType}, severity_hint={vis.SeverityLevel}, "
-                   + $"people={vis.PeopleInvolved}, hazards={vis.Hazards}, "
-                   + $"visual_cues={vis.VisualCues}";
+                   + $"people={vis.PeopleInvolved}, vehicles={vis.VehiclesInvolved}, "
+                   + $"hazards={vis.Hazards}, visual_cues={vis.VisualCues}, "
+                   + $"location={vis.LocationDescription}, reasoning={vis.ReasoningSummary}";
         var (sev, sevReason, sevStep) = await _severity.ClassifyAsync(sevCtx);
         report.AgentTrace.Add(sevStep);
 
-        // Step 3 – Dispatch
+        // Step 3 – Dispatch (hazards + visual_cues now included so FallbackDispatch
+        //          keyword matching hits "flame", "fire", "smoke", "accident" etc.)
         var dispCtx = $"incident_type={vis.IncidentType}, severity={sev}, "
-                    + $"people={vis.PeopleInvolved}, vehicles={vis.VehiclesInvolved}";
+                    + $"people={vis.PeopleInvolved}, vehicles={vis.VehiclesInvolved}, "
+                    + $"hazards={vis.Hazards}, visual_cues={vis.VisualCues}, "
+                    + $"location={vis.LocationDescription}, reasoning={vis.ReasoningSummary}";
         var (dispatch, dispStep) = await _dispatch.RecommendAsync(dispCtx);
         report.AgentTrace.Add(dispStep);
 
@@ -126,8 +134,29 @@ public class InputNormalizerAgent
         _logger.LogInformation("Processing AUDIO report");
 
         // Step 1 – Speech-to-text
-        var audioBytes = Convert.FromBase64String(req.Base64Audio);
-        var transcript = await _speech.TranscribeAsync(audioBytes, req.MimeType);
+        var audioBytes  = Convert.FromBase64String(req.Base64Audio);
+        var transcript  = await _speech.TranscribeAsync(audioBytes, req.MimeType);
+
+        // Guard: if transcription failed, return a clear error report instead of
+        // feeding "[Transcription unavailable]" through the NLP pipeline
+        if (string.IsNullOrWhiteSpace(transcript) || transcript == "[Transcription unavailable]")
+        {
+            _logger.LogWarning("Audio transcription failed or returned empty");
+            var failed = new IncidentReport { InputType = "audio" };
+            failed.AgentTrace.Add(new AgentStep
+            {
+                Agent      = "SpeechAgent",
+                Output     = "error:transcription-unavailable",
+                DurationMs = 0
+            });
+            failed.ReasoningSummary = "Audio transcription failed. Please retry or submit as text.";
+            failed.DispatchRecommendation = new DispatchRecommendation
+            {
+                UnitsRequired = new List<string> { "police" },
+                Priority      = 4
+            };
+            return failed;
+        }
 
         // Step 2 – Feed transcript through text pipeline
         var textReq = new TextReportRequest
@@ -137,11 +166,11 @@ public class InputNormalizerAgent
             Lon  = req.Lon
         };
         var report = await ProcessTextAsync(textReq);
-        report.InputType = "audio";          // override to reflect true origin
+        report.InputType = "audio";   // override to reflect true origin
         report.AgentTrace.Insert(0, new AgentStep
         {
-            Agent  = "SpeechAgent",
-            Output = $"transcript={transcript[..Math.Min(80, transcript.Length)]}…",
+            Agent      = "SpeechAgent",
+            Output     = $"transcript={transcript[..Math.Min(80, transcript.Length)]}…",
             DurationMs = 0
         });
 

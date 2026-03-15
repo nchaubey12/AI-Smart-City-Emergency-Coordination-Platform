@@ -76,6 +76,17 @@ public class ReportApiService
         catch (Exception ex) { return (false, ex.Message); }
     }
 
+    public async Task<bool> ReopenIncidentAsync(string key, string role)
+    {
+        try
+        {
+            var resp = await _http.PostAsync(
+                $"api/reports/incidents/{Uri.EscapeDataString(key)}/reopen?role={role}", null);
+            return resp.IsSuccessStatusCode;
+        }
+        catch { return false; }
+    }
+
     public async Task<(bool, string)> MarkDuplicateAsync(string role, MarkDuplicateRequest req)
     {
         try
