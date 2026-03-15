@@ -16,16 +16,16 @@ Built for the **Microsoft AI Dev Days Hackathon** — an end-to-end AI pipeline 
 ## 📸 Screenshots
 
 ### Login Page
-![ECP Login](docs/screenshots/screenshot_01_login.jpg)
+![ECP Login](docs/screenshots/screenshot_01_login.png)
 
 ### Submit Incident Report — Text
-![Text Report](docs/screenshots/screenshot_02_text_report.jpg)
+![Text Report](docs/screenshots/screenshot_02_text_report.png)
 
 ### Submit Incident Report — Image
-![Image Report](docs/screenshots/screenshot_03_image_report.jpg)
+![Image Report](docs/screenshots/screenshot_03_image_report.png)
 
 ### Admin Dashboard — Live Incident Management
-![Admin Dashboard](docs/screenshots/screenshot_04_admin_dashboard.jpg)
+![Admin Dashboard](docs/screenshots/screenshot_04_admin_dashboard.png)
 
 ---
 
