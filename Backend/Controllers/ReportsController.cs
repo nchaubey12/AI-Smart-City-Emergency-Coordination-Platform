@@ -185,6 +185,17 @@ public class ReportsController : ControllerBase
             : NotFound(new { error = "Not found." });
     }
 
+    // ── POST /api/reports/incidents/{key}/reopen ──────────────────────────────
+
+    [HttpPost("incidents/{key}/reopen")]
+    public async Task<IActionResult> ReopenIncident(string key, [FromQuery] string role)
+    {
+        if (role != "Admin") return Forbid();
+        return await _storage.ReopenIncidentAsync(key)
+            ? Ok(new { success = true, message = "Incident reopened." })
+            : NotFound(new { error = "Not found." });
+    }
+
     // ── POST /api/reports/mark-duplicate ─────────────────────────────────────
 
     [HttpPost("mark-duplicate")]

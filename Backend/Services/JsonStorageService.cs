@@ -216,6 +216,30 @@ public class JsonStorageService
         finally { _reportLock.Release(); }
     }
 
+    // ── Admin: Reopen incident (back to open) ────────────────────────────────
+
+    public async Task<bool> ReopenIncidentAsync(string key)
+    {
+        await _reportLock.WaitAsync();
+        try
+        {
+            var store    = await LoadReportsInternalAsync();
+            var incident = store.Incidents.FirstOrDefault(i => i.IncidentKey == key);
+            if (incident == null) return false;
+
+            incident.Status     = "open";
+            incident.AcceptedAt = null;
+            incident.AcceptedBy = null;
+            incident.ResolvedAt = null;
+            incident.ResolvedBy = null;
+            incident.DispatchTriggeredAt = null;
+
+            await File.WriteAllTextAsync(_reportsFile, JsonSerializer.Serialize(store, JsonOpts));
+            return true;
+        }
+        finally { _reportLock.Release(); }
+    }
+
     // ── Admin: Mark report as duplicate → move into target incident ───────────
 
     public async Task<bool> MarkDuplicateAsync(MarkDuplicateRequest req)

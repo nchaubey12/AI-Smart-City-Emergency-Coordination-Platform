@@ -59,19 +59,20 @@ public class StoredReport
     [JsonPropertyName("analysisResult")]
     public IncidentReport? AnalysisResult { get; set; }
 
+    [JsonPropertyName("uploadedImage")]
+    public string UploadedImage { get; set; } = string.Empty;
+
+    [JsonPropertyName("uploadedAudio")]
+    public string UploadedAudio { get; set; } = string.Empty;
+
+    [JsonPropertyName("uploadedMimeType")]
+    public string UploadedMimeType { get; set; } = string.Empty;
+
     // Set when admin marks this as duplicate of another incident
     [JsonPropertyName("isDuplicate")]
     public bool IsDuplicate { get; set; } = false;
     [JsonPropertyName("duplicateOfKey")]
     public string? DuplicateOfKey { get; set; }
-    [JsonPropertyName("uploadedimage")]
-    public string UploadedImage { get; set; } = string.Empty;
-    [JsonPropertyName("uploadedmimetype")]
-    public string UploadedMimeType { get; set; } = string.Empty;
-    
-    [JsonPropertyName("uploadedaudio")]
-    public string UploadedAudio { get; set; } = string.Empty;
-    
 }
 
 public class AggregatedIncident

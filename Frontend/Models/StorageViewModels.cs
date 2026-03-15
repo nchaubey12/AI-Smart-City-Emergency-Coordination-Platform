@@ -137,16 +137,19 @@ public class AggregatedIncidentSummary
 
 public class IndividualReport
 {
-    [JsonPropertyName("reportId")]      public string ReportId    { get; set; } = string.Empty;
-    [JsonPropertyName("userName")]      public string UserName    { get; set; } = string.Empty;
-    [JsonPropertyName("userEmail")]     public string UserEmail   { get; set; } = string.Empty;
-    [JsonPropertyName("userRole")]      public string UserRole    { get; set; } = string.Empty;
-    [JsonPropertyName("description")]   public string Description { get; set; } = string.Empty;
-    [JsonPropertyName("location")]      public string Location    { get; set; } = string.Empty;
-    [JsonPropertyName("submittedAt")]   public DateTime SubmittedAt { get; set; }
-    [JsonPropertyName("inputType")]     public string InputType   { get; set; } = string.Empty;
-    [JsonPropertyName("isDuplicate")]   public bool IsDuplicate   { get; set; }
+    [JsonPropertyName("reportId")]       public string ReportId       { get; set; } = string.Empty;
+    [JsonPropertyName("userName")]       public string UserName       { get; set; } = string.Empty;
+    [JsonPropertyName("userEmail")]      public string UserEmail      { get; set; } = string.Empty;
+    [JsonPropertyName("userRole")]       public string UserRole       { get; set; } = string.Empty;
+    [JsonPropertyName("description")]    public string Description    { get; set; } = string.Empty;
+    [JsonPropertyName("location")]       public string Location       { get; set; } = string.Empty;
+    [JsonPropertyName("submittedAt")]    public DateTime SubmittedAt  { get; set; }
+    [JsonPropertyName("inputType")]      public string InputType      { get; set; } = string.Empty;
+    [JsonPropertyName("isDuplicate")]    public bool IsDuplicate      { get; set; }
     [JsonPropertyName("duplicateOfKey")] public string? DuplicateOfKey { get; set; }
+    [JsonPropertyName("uploadedImage")]  public string? UploadedImage { get; set; }
+    [JsonPropertyName("uploadedAudio")]  public string? UploadedAudio { get; set; }
+    [JsonPropertyName("uploadedMimeType")] public string? UploadedMimeType { get; set; }
 }
 
 public class AggregatedIncidentDetail
