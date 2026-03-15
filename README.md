@@ -16,16 +16,16 @@ Built for the **Microsoft AI Dev Days Hackathon** — an end-to-end AI pipeline 
 ## 📸 Screenshots
 
 ### Login Page
-![ECP Login](docs/screenshots/screenshot_01_login.png)
+<img src="docs/screenshots/screenshot_01_login.png" width="700"/>
 
 ### Submit Incident Report — Text
-![Text Report](docs/screenshots/screenshot_02_text_report.png)
+<img src="docs/screenshots/screenshot_02_text_report.png" width="700"/>
 
 ### Submit Incident Report — Image
-![Image Report](docs/screenshots/screenshot_03_image_report.png)
+<img src="docs/screenshots/screenshot_03_image_report.png" width="700"/>
 
 ### Admin Dashboard — Live Incident Management
-![Admin Dashboard](docs/screenshots/screenshot_04_admin_dashboard.png)
+<img src="docs/screenshots/screenshot_04_admin_dashboard.png" width="900"/>
 
 ---
 
@@ -34,35 +34,35 @@ Built for the **Microsoft AI Dev Days Hackathon** — an end-to-end AI pipeline 
 ### 1. Workflow Overview
 > End-to-end emergency response pipeline — from citizen report to incident resolution in 10 automated steps using multi-agent AI and Azure services.
 
-![Workflow Overview](docs/diagrams/01_Simple_Workflow.jpg)
+<img src="docs/diagrams/01_Simple_Workflow.jpg" width="550"/>
 
 ---
 
 ### 2. System Architecture
 > Full system architecture — Blazor WebAssembly frontend communicates with ASP.NET Core API, which orchestrates a multi-agent pipeline backed by Azure OpenAI, Azure Maps, Azure Speech, and Azure Service Bus.
 
-![System Architecture](docs/diagrams/04_System_Architecture.jpg)
+<img src="docs/diagrams/04_System_Architecture.jpg" width="750"/>
 
 ---
 
 ### 3. Architecture Layers
 > Multi-layer agent architecture — three specialist AI agents (NLP, Vision, Speech) process input in parallel, feeding into Severity and Dispatch agents that produce a structured incident report with full audit trace.
 
-![Architecture Layers](docs/diagrams/05_Architecture_Layers.jpg)
+<img src="docs/diagrams/05_Architecture_Layers.jpg" width="750"/>
 
 ---
 
 ### 4. Agent Pipeline Detail
 > Agent pipeline detail and API endpoint structure — shows how each input type flows through dedicated AI agents, how results converge into a scored IncidentReport JSON, and how the REST API routes reports to storage, Service Bus, and admin dispatch.
 
-![Agent Pipeline](docs/diagrams/03_Agent_Pipeline_and_API.jpg)
+<img src="docs/diagrams/03_Agent_Pipeline_and_API.jpg" width="650"/>
 
 ---
 
 ### 5. Complete System Flow
 > Complete system flow — all layers from Blazor frontend through the agent pipeline, Azure AI services, storage, Service Bus queue, Azure Function, and admin-confirmed dispatch to Police, Fire, and Medical response teams.
 
-![Full System Flow](docs/diagrams/02_Full_System_Flow.jpg)
+<img src="docs/diagrams/02_Full_System_Flow.jpg" width="550"/>
 
 ---
 
