@@ -6,7 +6,7 @@
 @inject ReportApiService ReportApi
 @inject NavigationManager Nav
 
-<PageTitle>ECP Dashboard</PageTitle>
+<PageTitle>ECP</PageTitle>
 
 @if (!Auth.IsLoggedIn) { <p>Redirecting…</p> }
 else if (!Auth.IsAdmin)
@@ -28,7 +28,7 @@ else
             <div class="brand-icon">🚨</div>
             <div>
                 <div class="brand-name">ECP</div>
-                <div class="brand-role" Style = "margin-top: 0.5rem;">Admin Console</div>
+                <div class="brand-role" Style="margin-top: 0.5rem;">Admin Console</div>
             </div>
         </div>
         <nav class="sidenav">
